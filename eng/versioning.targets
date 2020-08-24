@@ -33,7 +33,7 @@
       <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatform" Condition="'@(_supportedOSPlatforms)' != ''">
         <_Parameter1>%(_supportedOSPlatforms.Identity)</_Parameter1>
       </AssemblyAttribute>
-      <AssemblyAttribute Include="System.Runtime.Versioning.UnsupportedOSPlatform" Condition="'@(_supportedOSPlatforms)' == '' and '@(_unsupportedOSPlatforms)' != ''">
+      <AssemblyAttribute Include="System.Runtime.Versioning.UnsupportedOSPlatform" Condition="'@(_unsupportedOSPlatforms)' != ''">
         <_Parameter1>%(_unsupportedOSPlatforms.Identity)</_Parameter1>
       </AssemblyAttribute>
     </ItemGroup>
