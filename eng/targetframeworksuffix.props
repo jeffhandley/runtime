@@ -4,6 +4,7 @@
       <PropertyGroup>
         <TargetsWindows>true</TargetsWindows>
         <PackageTargetRuntime>win</PackageTargetRuntime>
+        <SupportedOSPlatforms Condition="'$(IncludePlatformAttributes)' == 'true' and '$(SupportedOSPlatforms)' == ''" >windows</SupportedOSPlatforms>
       </PropertyGroup>
     </When>
     <When Condition="'$(TargetFrameworkSuffix)' == 'Unix'">
@@ -80,6 +81,7 @@
       <PropertyGroup>
         <TargetsBrowser>true</TargetsBrowser>
         <PackageTargetRuntime>browser</PackageTargetRuntime>
+        <SupportedOSPlatforms Condition="'$(IncludePlatformAttributes)' == 'true' and '$(SupportedOSPlatforms)' == ''" >browser</SupportedOSPlatforms>
       </PropertyGroup>
     </When>
     <When Condition="'$(TargetFrameworkSuffix)' == ''">
