@@ -3,6 +3,5 @@
   <PropertyGroup>
     <StrongNameKeyId>Microsoft</StrongNameKeyId>
     <IncludePlatformAttributes>true</IncludePlatformAttributes>
-    <UnsupportedOSPlatforms Condition="'$(TargetsWindows)' != 'true'">browser</UnsupportedOSPlatforms>
   </PropertyGroup>
 </Project>
