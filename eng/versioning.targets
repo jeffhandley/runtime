@@ -22,6 +22,10 @@
     </AssemblyMetadata>
   </ItemGroup>
 
+  <!-- Sets SupportedOSPlatform=ABC when targetting ABC and using PlatformAttributes or defining UnsupportedOSPlatforms -->
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true' and '$(SupportedOSPlatforms)' == '' and ('$(IncludePlatformAttributes)' == 'true' or '$(UnsupportedOSPlatforms)' != '')">
+    <SupportedOSPlatforms Condition="'$(TargetsWindows)' == 'true'">windows</SupportedOSPlatforms>
+  </PropertyGroup>
   <!-- Adds SupportedOSPlatform or UnsupportedOSPlatform attributes -->
   <ItemGroup Condition="'$(IsTestProject)' != 'true'">
     <_supportedOSPlatforms Include="$(SupportedOSPlatforms)" />
