@@ -959,7 +959,7 @@ namespace System.Reflection
                 type = (type.GetGenericTypeDefinition() as RuntimeType)!;
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType);
             PseudoCustomAttribute.GetCustomAttributes(type, caType, ref attributes);
 
             // if we are asked to go up the hierarchy chain we have to do it now and regardless of the
@@ -970,7 +970,7 @@ namespace System.Reflection
                 type = (type.BaseType as RuntimeType)!;
                 while (type != (RuntimeType)typeof(object) && type is not null)
                 {
-                    AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType, mustBeInheritable: true, attributes);
+                    AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType, mustBeInheritable: true, attributes.Count);
                     type = (type.BaseType as RuntimeType)!;
                 }
             }
@@ -996,7 +996,7 @@ namespace System.Reflection
                 type = (type.GetGenericTypeDefinition() as RuntimeType)!;
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType);
             PseudoCustomAttribute.GetCustomAttributes(type, caType, ref attributes);
 
             // if we are asked to go up the hierarchy chain we have to do it now and regardless of the
@@ -1007,7 +1007,7 @@ namespace System.Reflection
                 type = (type.BaseType as RuntimeType)!;
                 while (type != (RuntimeType)typeof(object) && type is not null)
                 {
-                    AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType, mustBeInheritable: true, attributes);
+                    AddCustomAttributes(ref attributes, type.GetRuntimeModule(), type.MetadataToken, caType, mustBeInheritable: true, attributes.Count);
                     type = (type.BaseType as RuntimeType)!;
                 }
             }
@@ -1024,7 +1024,7 @@ namespace System.Reflection
                 method = (method.GetGenericMethodDefinition() as RuntimeMethodInfo)!;
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType);
             PseudoCustomAttribute.GetCustomAttributes(method, caType, ref attributes);
 
             // if we are asked to go up the hierarchy chain we have to do it now and regardless of the
@@ -1035,7 +1035,7 @@ namespace System.Reflection
                 method = method.GetParentDefinition()!;
                 while (method is not null)
                 {
-                    AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType, mustBeInheritable: true, attributes);
+                    AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType, mustBeInheritable: true, attributes.Count);
                     method = method.GetParentDefinition()!;
                 }
             }
@@ -1058,7 +1058,7 @@ namespace System.Reflection
                 method = (method.GetGenericMethodDefinition() as RuntimeMethodInfo)!;
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType);
             PseudoCustomAttribute.GetCustomAttributes(method, caType, ref attributes);
 
             // if we are asked to go up the hierarchy chain we have to do it now and regardless of the
@@ -1069,7 +1069,7 @@ namespace System.Reflection
                 method = method.GetParentDefinition()!;
                 while (method is not null)
                 {
-                    AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType, mustBeInheritable: true, attributes);
+                    AddCustomAttributes(ref attributes, method.GetRuntimeModule(), method.MetadataToken, caType, mustBeInheritable: true, attributes.Count);
                     method = method.GetParentDefinition()!;
                 }
             }
@@ -1095,7 +1095,7 @@ namespace System.Reflection
             // No pseudo attributes for RuntimeConstructorInfo
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, ctor.GetRuntimeModule(), ctor.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, ctor.GetRuntimeModule(), ctor.MetadataToken, caType);
 
             return attributes.ToAttributeArray(caType);
         }
@@ -1192,7 +1192,7 @@ namespace System.Reflection
             // No pseudo attributes for RuntimePropertyInfo
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, property.GetRuntimeModule(), property.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, property.GetRuntimeModule(), property.MetadataToken, caType);
 
             if (inherit)
             {
@@ -1216,7 +1216,7 @@ namespace System.Reflection
                 // We'll loop here rather than recurse so as not to need to recreate the paramTypes array more than once
                 while (baseProperty is not null)
                 {
-                    AddCustomAttributes(ref attributes, baseProperty.GetRuntimeModule(), baseProperty.MetadataToken, caType, mustBeInheritable: true, attributes);
+                    AddCustomAttributes(ref attributes, baseProperty.GetRuntimeModule(), baseProperty.MetadataToken, caType, mustBeInheritable: true, attributes.Count);
                     baseProperty = GetParentDefinition(baseProperty, paramTypes) as RuntimePropertyInfo;
                 }
             }
@@ -1291,7 +1291,7 @@ namespace System.Reflection
             // No pseudo attributes for RuntimeEventInfo
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, e.GetRuntimeModule(), e.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, e.GetRuntimeModule(), e.MetadataToken, caType);
 
             return attributes.ToAttributeArray(caType);
         }
@@ -1323,7 +1323,7 @@ namespace System.Reflection
             Debug.Assert(caType is not null);
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, field.GetRuntimeModule(), field.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, field.GetRuntimeModule(), field.MetadataToken, caType);
             PseudoCustomAttribute.GetCustomAttributes(field, caType, ref attributes);
 
             return attributes.ToAttributeArray(caType);
@@ -1428,7 +1428,7 @@ namespace System.Reflection
             Debug.Assert(caType is not null);
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, parameter.GetRuntimeModule()!, parameter.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, parameter.GetRuntimeModule()!, parameter.MetadataToken, caType);
             PseudoCustomAttribute.GetCustomAttributes(parameter, caType, ref attributes);
 
             if (inherit && parameter.Member.MemberType == MemberTypes.Method && parameter.Member.DeclaringType is not null)
@@ -1443,7 +1443,7 @@ namespace System.Reflection
                 RuntimeParameterInfo? parent = GetParentDefinition(parameter) as RuntimeParameterInfo;
                 while (parent is not null && parent.Member.DeclaringType is not null)
                 {
-                    AddCustomAttributes(ref attributes, parent.GetRuntimeModule()!, parent.MetadataToken, caType, mustBeInheritable: true, attributes);
+                    AddCustomAttributes(ref attributes, parent.GetRuntimeModule()!, parent.MetadataToken, caType, mustBeInheritable: true, attributes.Count);
 
                     parent = GetParentDefinition(parent) as RuntimeParameterInfo;
                 }
@@ -1472,7 +1472,7 @@ namespace System.Reflection
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
             int assemblyToken = RuntimeAssembly.GetToken(assembly.GetNativeHandle());
-            AddCustomAttributes(ref attributes, (assembly.ManifestModule as RuntimeModule)!, assemblyToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, (assembly.ManifestModule as RuntimeModule)!, assemblyToken, caType);
 
             return attributes.ToAttributeArray(caType);
         }
@@ -1495,7 +1495,7 @@ namespace System.Reflection
             // No pseudo attributes for RuntimeModule
 
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, module, module.MetadataToken, caType, mustBeInheritable: false, default);
+            AddCustomAttributes(ref attributes, module, module.MetadataToken, caType);
 
             return attributes.ToAttributeArray(caType);
         }
@@ -1536,7 +1536,7 @@ namespace System.Reflection
                         out record.tkCtor.Value, out record.blob);
 
                     if (FilterCustomAttributeRecord(record.tkCtor, in scope,
-                        decoratedModule, decoratedMetadataToken, attributeFilterType, mustBeInheritable, in derivedAttributes,
+                        decoratedModule, decoratedMetadataToken, attributeFilterType, mustBeInheritable, in derivedAttributes, derivedAttributeCount: 0,
                         out _, out _, out _))
                     {
                         return true;
@@ -1567,7 +1567,7 @@ namespace System.Reflection
             RuntimeModule decoratedModule, int decoratedMetadataToken, RuntimeType? attributeFilterType)
         {
             RuntimeType.ListBuilder<Attribute> attributes = default;
-            AddCustomAttributes(ref attributes, decoratedModule, decoratedMetadataToken, attributeFilterType, false, default);
+            AddCustomAttributes(ref attributes, decoratedModule, decoratedMetadataToken, attributeFilterType);
 
             if (attributes.Count == 0)
                 return null;
@@ -1585,8 +1585,8 @@ namespace System.Reflection
         private static void AddCustomAttributes(
             ref RuntimeType.ListBuilder<Attribute> attributes,
             RuntimeModule decoratedModule, int decoratedMetadataToken,
-            RuntimeType? attributeFilterType, bool mustBeInheritable,
-            in RuntimeType.ListBuilder<Attribute> derivedAttributes)
+            RuntimeType? attributeFilterType, bool mustBeInheritable = false,
+            int derivedAttributeCount = 0)
         {
             if (attributeFilterType is null)
             {
@@ -1612,7 +1612,7 @@ namespace System.Reflection
 
                 if (!FilterCustomAttributeRecord(caRecord.tkCtor, in scope,
                                                  decoratedModule, decoratedMetadataToken, attributeFilterType!, mustBeInheritable,
-                                                 in derivedAttributes,
+                                                 in attributes, derivedAttributeCount,
                                                  out RuntimeType attributeType, out IRuntimeMethodInfo? ctorWithParameters, out bool isVarArg))
                 {
                     continue;
@@ -1735,6 +1735,7 @@ namespace System.Reflection
             RuntimeType attributeFilterType,
             bool mustBeInheritable,
             in RuntimeType.ListBuilder<Attribute> derivedAttributes,
+            int derivedAttributeCount,
             out RuntimeType attributeType,
             out IRuntimeMethodInfo? ctorWithParameters,
             out bool isVarArg)
@@ -1751,8 +1752,8 @@ namespace System.Reflection
 
             // Ensure if attribute type must be inheritable that it is inheritable
             // Ensure that to consider a duplicate attribute type AllowMultiple is true
-            if (mustBeInheritable || derivedAttributes.Count > 0)
-                if (!AttributeUsageCheck(attributeType, mustBeInheritable, in derivedAttributes))
+            if (mustBeInheritable || derivedAttributeCount > 0)
+                if (!AttributeUsageCheck(attributeType, mustBeInheritable, in derivedAttributes, derivedAttributeCount))
                     return false;
 
             // Windows Runtime attributes aren't real types - they exist to be read as metadata only, and as such
@@ -1832,7 +1833,7 @@ namespace System.Reflection
 
         #region Private Static Methods
         private static bool AttributeUsageCheck(
-            RuntimeType attributeType, bool mustBeInheritable, in RuntimeType.ListBuilder<Attribute> derivedAttributes)
+            RuntimeType attributeType, bool mustBeInheritable, in RuntimeType.ListBuilder<Attribute> derivedAttributes, int derivedAttributeCount)
         {
             AttributeUsageAttribute? attributeUsageAttribute = null;
 
@@ -1845,10 +1846,10 @@ namespace System.Reflection
             }
 
             // Legacy: AllowMultiple ignored for none inheritable attributes
-            if (derivedAttributes.Count == 0)
+            if (derivedAttributeCount == 0)
                 return true;
 
-            for (int i = 0; i < derivedAttributes.Count; i++)
+            for (int i = 0; i < derivedAttributeCount; i++)
             {
                 if (derivedAttributes[i].GetType() == attributeType)
                 {
