@@ -445,10 +445,145 @@ namespace Microsoft.Extensions.FileSystemGlobbing.Tests
             AssertExtensions.CollectionEqual(expected, actual, StringComparer.OrdinalIgnoreCase);
         }
 
+        [Theory] // rootDir,  includePattern, expectedPath,   currentPath
+        [InlineData(@"root",  @"*.0",         @"root/test.0", @"test.0")] // ---- FAIL ----
+        [InlineData(@"root",  @"./*.0",       @"root/test.0", @"test.0")] // ---- FAIL ----
+        public void PathIncludesRootAndPatternSegments_FileInRootDirectory(string root, string includePattern, string expectedPath, string currentTestResult)
+        {
+            var file = @"root/test.0";
+            var matcher = new Matcher();
+            matcher.AddInclude(includePattern);
+
+            var results = matcher.Match(root, new[] { file });
+            var actualPath = results.Files.Select(file => file.Path).SingleOrDefault();
+
+            Assert.Equal(currentTestResult, actualPath);
+            Assert.Equal(expectedPath, actualPath);
+        }
+
+        [Theory] // rootDir,      includePattern, expectedPath,        currentPath
+        [InlineData(@"root/dir1", @"*.1",         @"root/dir1/test.1", @"test.1")]      // ---- FAIL ----
+        [InlineData(@"root/dir1", @"./*.1",       @"root/dir1/test.1", @"test.1")]      // ---- FAIL ----
+        [InlineData(@"root",      @"dir1/*.1",    @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
+        [InlineData(@"root",      @"**/*.1",      @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
+        [InlineData(@"root",      @"./dir1/*.1",  @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
+        [InlineData(@"root",      @"./**/*.1",    @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
+        [InlineData(@"root/dir1", @"../dir1/*.1", @"root/dir1/test.1", null)]           // ???? Are parent directories supported?
+        [InlineData(@"root/dir1", @"../**/*.1",   @"root/dir1/test.1", null)]           // ????
+        public void PathIncludesRootAndPatternSegments_FileOneDirectoryDeep(string root, string includePattern, string expectedPath, string currentTestResult)
+        {
+            var file = @"root/dir1/test.1";
+            var matcher = new Matcher();
+            matcher.AddInclude(includePattern);
+
+            var results = matcher.Match(root, new[] { file });
+            var actualPath = results.Files.Select(file => file.Path).SingleOrDefault();
+
+            Assert.Equal(currentTestResult, actualPath);
+            Assert.Equal(expectedPath, actualPath);
+        }
+
+        [Theory] // rootDir,           includePattern,         expectedPath,             currentPath
+        [InlineData(@"root/dir1/dir2", @"*.2",                 @"root/dir1/dir2/test.2", @"test.2")]           // ---- FAIL ----
+        [InlineData(@"root/dir1/dir2", @"./*.2",               @"root/dir1/dir2/test.2", @"test.2")]           // ---- FAIL ----
+        [InlineData(@"root",           @"dir1/dir2/*.2",       @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
+        [InlineData(@"root",           @"**/*.2",              @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
+        [InlineData(@"root",           @"./dir1/dir2/*.2",     @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
+        [InlineData(@"root",           @"./**/*.2",            @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
+        [InlineData(@"root/dir1",      @"../dir1/dir2/*.2",    @"root/dir1/dir2/test.2", null)]                // ???? Are parent directories supported?
+        [InlineData(@"root/dir1",      @"../**/*.2",           @"root/dir1/dir2/test.2", null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../dir2/*.2",         @"root/dir1/dir2/test.2", null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../**/*.2",           @"root/dir1/dir2/test.2", null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../../dir1/dir2/*.2", @"root/dir1/dir2/test.2", null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../../dir1/**/*.2",   @"root/dir1/dir2/test.2", null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../../**/*.2",        @"root/dir1/dir2/test.2", null)]                // ????
+        public void PathIncludesRootAndPatternSegments_FileTwoDirectoriesDeep(string root, string includePattern, string expectedPath, string currentPath)
+        {
+            var file = @"root/dir1/dir2/test.2";
+            var matcher = new Matcher();
+            matcher.AddInclude(includePattern);
+
+            var results = matcher.Match(root, new[] { file });
+            var actualPath = results.Files.Select(file => file.Path).SingleOrDefault();
+
+            Assert.Equal(currentPath, actualPath);
+            Assert.Equal(expectedPath, actualPath);
+        }
+
+        [Theory] // rootDir,  includePattern, expectedStem, currentStem  
+        [InlineData(@"root",  @"*.0",         @"test.0",    @"test.0")] // pass
+        [InlineData(@"root",  @"./*.0",       @"test.0",    @"test.0")] // pass
+        public void StemExcludesRootAndIncludesPatternSegments_FileInRootDirectory(string rootDir, string includePattern, string expectedStem, string currentStem)
+        {
+            var file = @"root/test.0";
+            var matcher = new Matcher();
+            matcher.AddInclude(includePattern);
+
+            var results = matcher.Match(rootDir, new[] { file });
+            var actualStem = results.Files.Select(file => file.Stem).SingleOrDefault();
+
+            Assert.Equal(currentStem, actualStem);
+            Assert.Equal(expectedStem, actualStem);
+        }
+
+        [Theory] // rootDir,      includePattern, expectedStem,      currentStem
+        [InlineData(@"root/dir1", @"*.1",         @"test.1",         @"test.1")]      // pass
+        [InlineData(@"root/dir1", @"./*.1",       @"test.1",         @"test.1")]      // pass
+        [InlineData(@"root",      @"dir1/*.1",    @"dir1/test.1",    @"test.1")]      // ---- FAIL ----
+        [InlineData(@"root",      @"**/*.1",      @"dir1/test.1",    @"dir1/test.1")] // pass
+        [InlineData(@"root",      @"./dir1/*.1",  @"dir1/test.1",    @"test.1")]      // ---- FAIL ----
+        [InlineData(@"root",      @"./**/*.1",    @"dir1/test.1",    @"dir1/test.1")] // pass
+        [InlineData(@"root/dir1", @"../dir1/*.1", @"../dir1/test.1", null)]           // ???? Are parent directories supported?
+        [InlineData(@"root/dir1", @"../**/*.1",   @"../dir1/test.1", null)]           // ????
+        public void StemExcludesRootAndIncludesPatternSegments_FileOneDirectoryDeep(string rootDir, string includePattern, string expectedStem, string currentStem)
+        {
+            var file = @"root/dir1/test.1";
+            var matcher = new Matcher();
+            matcher.AddInclude(includePattern);
+
+            var results = matcher.Match(rootDir, new[] { file });
+            var actualStem = results.Files.Select(file => file.Stem).SingleOrDefault();
+
+            Assert.Equal(currentStem, actualStem);
+            Assert.Equal(expectedStem, actualStem);
+        }
+
+        [Theory] // rootDir,           includePattern,         expectedStem,              currentStem
+        [InlineData(@"root/dir1/dir2", @"*.2",                 @"test.2",                 @"test.2")]           // pass
+        [InlineData(@"root/dir1/dir2", @"./*.2",               @"test.2",                 @"test.2")]           // pass
+        [InlineData(@"root",           @"dir1/dir2/*.2",       @"dir1/dir2/test.2",       @"test.2")]           // ---- FAIL ----
+        [InlineData(@"root",           @"dir1/**/*.2",         @"dir1/dir2/test.2",       @"dir2/test.2")]      // ---- FAIL ----
+        [InlineData(@"root",           @"**/*.2",              @"dir1/dir2/test.2",       @"dir1/dir2/test.2")] // pass
+        [InlineData(@"root",           @"./dir1/dir2/*.2",     @"dir1/dir2/test.2",       @"test.2")]           // ---- FAIL ----
+        [InlineData(@"root",           @"./dir1/**/*.2",       @"dir1/dir2/test.2",       @"dir2/test.2")]      // ---- FAIL ----
+        [InlineData(@"root",           @"./**/*.2",            @"dir1/dir2/test.2",       @"dir1/dir2/test.2")] // pass
+        [InlineData(@"root/dir1",      @"../dir1/dir2/*.2",    @"../dir1/dir2/test.2",    null)]                // ???? Are parent directories outside the root supported?
+        [InlineData(@"root/dir1",      @"../**/*.2",           @"../dir1/dir2/test.2",    null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../dir2/*.2",         @"../dir2/test.2",         null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../**/*.2",           @"../dir2/test.2",         null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../../dir1/dir2/*.2", @"../../dir1/dir2/test.2", null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../../dir1/**/*.2",   @"../../dir1/dir2/test.2", null)]                // ????
+        [InlineData(@"root/dir1/dir2", @"../../**/*.2",        @"../../dir1/dir2/test.2", null)]                // ????
+        public void StemExcludesRootAndIncludesPatternSegments_FileTwoDirectoriesDeep(string rootDir, string includePattern, string expectedStem, string currentStem)
+        {
+            var file = @"root/dir1/dir2/test.2";
+            var matcher = new Matcher();
+            matcher.AddInclude(includePattern);
+
+            var results = matcher.Match(rootDir, new[] { file });
+            var actualStem = results.Files.Select(file => file.Stem).SingleOrDefault();
+
+            Assert.Equal(currentStem, actualStem);
+            Assert.Equal(expectedStem, actualStem);
+        }
+
         private List<string> GetFileList()
         {
             return new List<string>
             {
+                "root/test.0",
+                "root/dir1/test.1",
+                "root/dir1/dir2/test.2",
                 "src/project/source1.cs",
                 "src/project/sub/source2.cs",
                 "src/project/sub/source3.cs",

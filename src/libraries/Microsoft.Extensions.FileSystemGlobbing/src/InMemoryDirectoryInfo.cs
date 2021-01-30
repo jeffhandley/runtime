@@ -119,6 +119,10 @@ namespace Microsoft.Extensions.FileSystemGlobbing
 
         private bool IsRootDirectory(string rootDir, string filePath)
         {
+            // TODO: This seems like a bug
+            // With rootDir = "C:\" and filePath = "C:\test.cs", IsRootDirectory returns false
+            // Because filePath.IndexOf(Path.DirectorySeperatorChar, rootDir.Length) = -1
+            // Should this be `> rootDir.Length` instead?
             if (!filePath.StartsWith(rootDir, StringComparison.Ordinal) ||
                 filePath.IndexOf(Path.DirectorySeparatorChar, rootDir.Length) != rootDir.Length)
             {

@@ -10,6 +10,8 @@ namespace Microsoft.Extensions.FileSystemGlobbing.Internal.PathSegments
     {
         private readonly StringComparison _comparisonType;
 
+        // TODO: Is this part of the bug?
+        // Shouldn't literal path segments be part of the stem?
         public bool CanProduceStem { get { return false; } }
 
         public LiteralPathSegment(string value, StringComparison comparisonType)
