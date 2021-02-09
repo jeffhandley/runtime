@@ -466,6 +466,7 @@ namespace Microsoft.Extensions.FileSystemGlobbing.Tests
         [InlineData(@"root/dir1", @"./*.1",       @"root/dir1/test.1", @"test.1")]      // ---- FAIL ----
         [InlineData(@"root",      @"dir1/*.1",    @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
         [InlineData(@"root",      @"**/*.1",      @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
+        [InlineData(@"root",      @"**/dir1/*.1", @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
         [InlineData(@"root",      @"./dir1/*.1",  @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
         [InlineData(@"root",      @"./**/*.1",    @"root/dir1/test.1", @"dir1/test.1")] // ---- FAIL ----
         [InlineData(@"root/dir1", @"../dir1/*.1", @"root/dir1/test.1", null)]           // ???? Are parent directories supported?
@@ -488,6 +489,7 @@ namespace Microsoft.Extensions.FileSystemGlobbing.Tests
         [InlineData(@"root/dir1/dir2", @"./*.2",               @"root/dir1/dir2/test.2", @"test.2")]           // ---- FAIL ----
         [InlineData(@"root",           @"dir1/dir2/*.2",       @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
         [InlineData(@"root",           @"**/*.2",              @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
+        [InlineData(@"root",           @"**/dir2/*.2",         @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
         [InlineData(@"root",           @"./dir1/dir2/*.2",     @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
         [InlineData(@"root",           @"./**/*.2",            @"root/dir1/dir2/test.2", @"dir1/dir2/test.2")] // ---- FAIL ----
         [InlineData(@"root/dir1",      @"../dir1/dir2/*.2",    @"root/dir1/dir2/test.2", null)]                // ???? Are parent directories supported?
@@ -531,6 +533,7 @@ namespace Microsoft.Extensions.FileSystemGlobbing.Tests
         [InlineData(@"root/dir1", @"./*.1",       @"test.1",         @"test.1")]      // pass
         [InlineData(@"root",      @"dir1/*.1",    @"dir1/test.1",    @"test.1")]      // ---- FAIL ----
         [InlineData(@"root",      @"**/*.1",      @"dir1/test.1",    @"dir1/test.1")] // pass
+        [InlineData(@"root",      @"**/dir1/*.1", @"dir1/test.1",    @"dir1/test.1")] // pass
         [InlineData(@"root",      @"./dir1/*.1",  @"dir1/test.1",    @"test.1")]      // ---- FAIL ----
         [InlineData(@"root",      @"./**/*.1",    @"dir1/test.1",    @"dir1/test.1")] // pass
         [InlineData(@"root/dir1", @"../dir1/*.1", @"../dir1/test.1", null)]           // ???? Are parent directories supported?
@@ -554,6 +557,7 @@ namespace Microsoft.Extensions.FileSystemGlobbing.Tests
         [InlineData(@"root",           @"dir1/dir2/*.2",       @"dir1/dir2/test.2",       @"test.2")]           // ---- FAIL ----
         [InlineData(@"root",           @"dir1/**/*.2",         @"dir1/dir2/test.2",       @"dir2/test.2")]      // ---- FAIL ----
         [InlineData(@"root",           @"**/*.2",              @"dir1/dir2/test.2",       @"dir1/dir2/test.2")] // pass
+        [InlineData(@"root",           @"**/dir2/*.2",         @"dir1/dir2/test.2",       @"dir1/dir2/test.2")] // pass
         [InlineData(@"root",           @"./dir1/dir2/*.2",     @"dir1/dir2/test.2",       @"test.2")]           // ---- FAIL ----
         [InlineData(@"root",           @"./dir1/**/*.2",       @"dir1/dir2/test.2",       @"dir2/test.2")]      // ---- FAIL ----
         [InlineData(@"root",           @"./**/*.2",            @"dir1/dir2/test.2",       @"dir1/dir2/test.2")] // pass
