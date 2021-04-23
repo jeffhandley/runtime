@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="System.Security.Permissions.cs" />
     <Compile Include="System.Security.Permissions.Forwards.cs" />
+    <Compile Include="System.Security.Permissions.Obsoletions.net50.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0' and '$(TargetFramework)' != 'net461'">
     <Compile Include="System.Security.Permissions.netcoreapp.cs" />
