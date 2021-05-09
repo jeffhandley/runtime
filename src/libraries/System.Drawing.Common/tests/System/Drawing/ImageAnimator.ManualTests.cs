@@ -70,6 +70,12 @@ namespace System.Drawing.Tests
                 }));
 
                 bitmaps[imageName] = new(Helpers.GetTestBitmapPath(imageName));
+            }
+
+            Thread.Sleep(30_000);
+
+            foreach (var imageName in images)
+            {
                 ImageAnimator.Animate(bitmaps[imageName], handlers[imageName]);
             }
 
