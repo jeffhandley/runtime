@@ -13,13 +13,13 @@ namespace System.Drawing.Tests
     public class ImageAnimatorManualTests
     {
         public static bool ManualTestsEnabled => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MANUAL_TESTS"));
-        public static string OutputFolder = Path.Combine(Environment.CurrentDirectory, "ImageAnimatorManualTests", DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss"));
+        public static string OutputFolder = Path.Combine(Environment.CurrentDirectory, "ImageAnimatorManualTests" /*, DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss") */);
 
         // To run these tests, change the working directory to src/libraries/System.Drawing.Common,
         // set the `MANUAL_TESTS` environment variable to any non-empty value, and run
         // `dotnet test --filter "ImageAnimatorManualTests"
 
-        [ConditionalFact(Helpers.IsDrawingSupported, nameof(ManualTestsEnabled), Timeout = 75_000)]
+        [Fact(Timeout = 75_000)]
         public void AnimateAndCaptureFrames()
         {
             // This test animates the test gifs that we have and waits 60 seconds
@@ -37,17 +37,20 @@ namespace System.Drawing.Tests
 
             string[] images = new string[]
             {
-                "animated-timer-1fps-repeat-2.gif",
-                "animated-timer-1fps-repeat-infinite.gif",
-                "animated-timer-10fps-repeat-2.gif",
-                "animated-timer-10fps-repeat-infinite.gif",
-                "animated-timer-100fps-repeat-2.gif",
+                // "animated-timer-1fps-repeat-2.gif",
+                // "animated-timer-1fps-repeat-infinite.gif",
+                // "animated-timer-10fps-repeat-2.gif",
+                // "animated-timer-10fps-repeat-infinite.gif",
+                // "animated-timer-100fps-repeat-2.gif",
                 "animated-timer-100fps-repeat-infinite.gif",
             };
 
             Dictionary<string, EventHandler> handlers = new();
             Dictionary<string, int> frameIndexes = new();
             Dictionary<string, Bitmap> bitmaps = new();
+
+            Console.Clear();
+            Console.WriteLine("********** ImageAnimator Manual Tests Starting... **********");
 
             Stopwatch stopwatch = new();
 
@@ -72,7 +75,16 @@ namespace System.Drawing.Tests
                 bitmaps[imageName] = new(Helpers.GetTestBitmapPath(imageName));
             }
 
-            Thread.Sleep(30_000);
+            Console.WriteLine("Ready to animate. Press any key to start...");
+            Console.ReadKey();
+
+            for (int countdown = 5; countdown > 0; countdown--)
+            {
+                Console.Write($"{countdown}...");
+                Thread.Sleep(1_000);
+            }
+
+            Console.WriteLine("Animating.");
 
             foreach (var imageName in images)
             {
