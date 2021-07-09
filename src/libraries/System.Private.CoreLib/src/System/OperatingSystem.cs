@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Runtime.Serialization;
+using System.Runtime.Versioning;
 
 namespace System
 {
@@ -101,6 +102,10 @@ namespace System
             return platform.Equals("WINDOWS", StringComparison.OrdinalIgnoreCase);
 #elif TARGET_OSX
             return platform.Equals("OSX", StringComparison.OrdinalIgnoreCase) || platform.Equals("MACOS", StringComparison.OrdinalIgnoreCase);
+#elif TARGET_MACCATALYST
+            return platform.Equals("MACCATALYST", StringComparison.OrdinalIgnoreCase) || platform.Equals("IOS", StringComparison.OrdinalIgnoreCase);
+#elif TARGET_IOS
+            return platform.Equals("IOS", StringComparison.OrdinalIgnoreCase);
 #elif TARGET_UNIX
             return platform.Equals(s_osPlatformName, StringComparison.OrdinalIgnoreCase);
 #else
@@ -122,6 +127,7 @@ namespace System
         /// <summary>
         /// Indicates whether the current application is running as WASM in a Browser.
         /// </summary>
+        [SupportedOSPlatformGuard("browser")]
         public static bool IsBrowser() =>
 #if TARGET_BROWSER
             true;
@@ -132,6 +138,7 @@ namespace System
         /// <summary>
         /// Indicates whether the current application is running on Linux.
         /// </summary>
+        [SupportedOSPlatformGuard("linux")]
         public static bool IsLinux() =>
 #if TARGET_LINUX && !TARGET_ANDROID
             true;
@@ -142,6 +149,7 @@ namespace System
         /// <summary>
         /// Indicates whether the current application is running on FreeBSD.
         /// </summary>
+        [SupportedOSPlatformGuard("freebsd")]
         public static bool IsFreeBSD() =>
 #if TARGET_FREEBSD
             true;
@@ -152,12 +160,14 @@ namespace System
         /// <summary>
         /// Check for the FreeBSD version (returned by 'uname') with a >= version comparison. Used to guard APIs that were added in the given FreeBSD release.
         /// </summary>
+        [SupportedOSPlatformGuard("freebsd")]
         public static bool IsFreeBSDVersionAtLeast(int major, int minor = 0, int build = 0, int revision = 0)
             => IsFreeBSD() && IsOSVersionAtLeast(major, minor, build, revision);
 
         /// <summary>
         /// Indicates whether the current application is running on Android.
         /// </summary>
+        [SupportedOSPlatformGuard("android")]
         public static bool IsAndroid() =>
 #if TARGET_ANDROID
             true;
@@ -168,14 +178,18 @@ namespace System
         /// <summary>
         /// Check for the Android API level (returned by 'ro.build.version.sdk') with a >= version comparison. Used to guard APIs that were added in the given Android release.
         /// </summary>
+        [SupportedOSPlatformGuard("android")]
         public static bool IsAndroidVersionAtLeast(int major, int minor = 0, int build = 0, int revision = 0)
             => IsAndroid() && IsOSVersionAtLeast(major, minor, build, revision);
 
         /// <summary>
-        /// Indicates whether the current application is running on iOS.
+        /// Indicates whether the current application is running on iOS or MacCatalyst.
         /// </summary>
+        /// <remarks>
+        [SupportedOSPlatformGuard("ios")]
+        [SupportedOSPlatformGuard("maccatalyst")]
         public static bool IsIOS() =>
-#if TARGET_IOS
+#if TARGET_IOS || TARGET_MACCATALYST
             true;
 #else
             false;
@@ -184,12 +198,16 @@ namespace System
         /// <summary>
         /// Check for the iOS version (returned by 'libobjc.get_operatingSystemVersion') with a >= version comparison. Used to guard APIs that were added in the given iOS release.
         /// </summary>
+        [SupportedOSPlatformGuard("ios")]
+        [SupportedOSPlatformGuard("maccatalyst")]
         public static bool IsIOSVersionAtLeast(int major, int minor = 0, int build = 0)
             => IsIOS() && IsOSVersionAtLeast(major, minor, build, 0);
 
         /// <summary>
         /// Indicates whether the current application is running on macOS.
         /// </summary>
+        [SupportedOSPlatformGuard("macos")]
+        [SupportedOSPlatformGuard("osx")]
         public static bool IsMacOS() =>
 #if TARGET_OSX
             true;
@@ -207,12 +225,15 @@ namespace System
         /// <summary>
         /// Check for the macOS version (returned by 'libobjc.get_operatingSystemVersion') with a >= version comparison. Used to guard APIs that were added in the given macOS release.
         /// </summary>
+        [SupportedOSPlatformGuard("macos")]
+        [SupportedOSPlatformGuard("osx")]
         public static bool IsMacOSVersionAtLeast(int major, int minor = 0, int build = 0)
             => IsMacOS() && IsOSVersionAtLeast(major, minor, build, 0);
 
         /// <summary>
         /// Indicates whether the current application is running on Mac Catalyst.
         /// </summary>
+        [SupportedOSPlatformGuard("maccatalyst")]
         public static bool IsMacCatalyst() =>
 #if TARGET_MACCATALYST
             true;
@@ -223,12 +244,14 @@ namespace System
         /// <summary>
         /// Check for the Mac Catalyst version (iOS version as presented in Apple documentation) with a >= version comparison. Used to guard APIs that were added in the given Mac Catalyst release.
         /// </summary>
+        [SupportedOSPlatformGuard("maccatalyst")]
         public static bool IsMacCatalystVersionAtLeast(int major, int minor = 0, int build = 0)
             => IsMacCatalyst() && IsOSVersionAtLeast(major, minor, build, 0);
 
         /// <summary>
         /// Indicates whether the current application is running on tvOS.
         /// </summary>
+        [SupportedOSPlatformGuard("tvos")]
         public static bool IsTvOS() =>
 #if TARGET_TVOS
             true;
@@ -237,14 +260,29 @@ namespace System
 #endif
 
         /// <summary>
+        /// Indicates whether the current application is running on OSX (an alias for macOS).
+        /// </summary>
+        /// <remarks>
+        /// This method exists to allow "osx" to be used as an alias for "macos" in SupportedOSPlatform attributes.
+        /// </remarks>
+        private static void IsOsx() =>
+#if TARGET_OSX
+            true;
+#else
+            false;
+#endif
+
+        /// <summary>
         /// Check for the tvOS version (returned by 'libobjc.get_operatingSystemVersion') with a >= version comparison. Used to guard APIs that were added in the given tvOS release.
         /// </summary>
+        [SupportedOSPlatformGuard("tvos")]
         public static bool IsTvOSVersionAtLeast(int major, int minor = 0, int build = 0)
             => IsTvOS() && IsOSVersionAtLeast(major, minor, build, 0);
 
         /// <summary>
         /// Indicates whether the current application is running on watchOS.
         /// </summary>
+        [SupportedOSPlatformGuard("watchos")]
         public static bool IsWatchOS() =>
 #if TARGET_WATCHOS
             true;
@@ -255,12 +293,14 @@ namespace System
         /// <summary>
         /// Check for the watchOS version (returned by 'libobjc.get_operatingSystemVersion') with a >= version comparison. Used to guard APIs that were added in the given watchOS release.
         /// </summary>
+        [SupportedOSPlatformGuard("watchos")]
         public static bool IsWatchOSVersionAtLeast(int major, int minor = 0, int build = 0)
             => IsWatchOS() && IsOSVersionAtLeast(major, minor, build, 0);
 
         /// <summary>
         /// Indicates whether the current application is running on Windows.
         /// </summary>
+        [SupportedOSPlatformGuard("windows")]
         public static bool IsWindows() =>
 #if TARGET_WINDOWS
             true;
@@ -271,6 +311,7 @@ namespace System
         /// <summary>
         /// Check for the Windows version (returned by 'RtlGetVersion') with a >= version comparison. Used to guard APIs that were added in the given Windows release.
         /// </summary>
+        [SupportedOSPlatformGuard("windows")]
         public static bool IsWindowsVersionAtLeast(int major, int minor = 0, int build = 0, int revision = 0)
             => IsWindows() && IsOSVersionAtLeast(major, minor, build, revision);
 
