@@ -66,7 +66,9 @@ namespace System.Drawing
                             }
 
                             // Frame delays are stored in 1/100ths of a second; convert to milliseconds while accumulating
-                            _frameEndTimes[f] = (lastEndTime += (BitConverter.ToInt32(values, i) * 10));
+                            int delay = BitConverter.ToInt32(values, i) * 10;
+                            lastEndTime += delay > 0 ? delay : ImageAnimator.AnimationDelayMS;
+                            _frameEndTimes[f] = lastEndTime;
                         }
                     }
 
@@ -95,24 +97,12 @@ namespace System.Drawing
             /// <summary>
             /// Whether the image supports animation.
             /// </summary>
-            public bool Animated
-            {
-                get
-                {
-                    return _animated;
-                }
-            }
+            public bool Animated => _animated;
 
             /// <summary>
             /// The current frame has changed but the image has not yet been updated.
             /// </summary>
-            public bool FrameDirty
-            {
-                get
-                {
-                    return _frameDirty;
-                }
-            }
+            public bool FrameDirty => _frameDirty;
 
             public EventHandler? FrameChangedHandler
             {
@@ -127,7 +117,7 @@ namespace System.Drawing
             }
 
             /// <summary>
-            /// The total animation time of the image, in milliseconds.
+            /// The total animation time of the image in milliseconds, or <value>0</value> if not animated.
             /// </summary>
             private long TotalAnimationTime => Animated ? _frameEndTimes![_frameCount - 1] : 0;
 
@@ -135,7 +125,7 @@ namespace System.Drawing
             /// Whether animation should progress, respecting the image's animation support
             /// and if there are animation frames or loops remaining.
             /// </summary>
-            private bool ShouldAnimate => Animated ? (_loopCount == 0 || _loop <= _loopCount) : false;
+            private bool ShouldAnimate => TotalAnimationTime > 0 ? (_loopCount == 0 || _loop <= _loopCount) : false;
 
             /// <summary>
             /// Advance the animation by the specified number of milliseconds. If the advancement
@@ -195,13 +185,7 @@ namespace System.Drawing
             /// <summary>
             /// The image this object wraps.
             /// </summary>
-            internal Image Image
-            {
-                get
-                {
-                    return _image;
-                }
-            }
+            internal Image Image => _image;
 
             /// <summary>
             /// Selects the current frame as the active frame in the image.
