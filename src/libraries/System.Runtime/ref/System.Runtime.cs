@@ -8871,7 +8871,9 @@ namespace System.Diagnostics.CodeAnalysis
     public sealed partial class ExperimentalAttribute : System.Attribute
     {
         public ExperimentalAttribute(string diagnosticId) { }
+        public ExperimentalAttribute(string diagnosticId, string? message) { }
         public string DiagnosticId { get { throw null; } }
+        public string? Message { get { throw null; } }
         public string? UrlFormat { get { throw null; } set { } }
     }
     [System.AttributeUsageAttribute(System.AttributeTargets.Property, Inherited = false, AllowMultiple = true)]

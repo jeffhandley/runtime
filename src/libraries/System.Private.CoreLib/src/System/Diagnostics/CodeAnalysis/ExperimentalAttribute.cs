@@ -40,6 +40,17 @@ namespace System.Diagnostics.CodeAnalysis
         }
 
         /// <summary>
+        ///  Initializes a new instance of the <see cref="ExperimentalAttribute"/> class, specifying the ID and message that the compiler
+        ///  will use when reporting a use of the API the attribute applies to.
+        /// </summary>
+        /// <param name="diagnosticId">The ID that the compiler will use when reporting a use of the API the attribute applies to.</param>
+        /// <param name="message">The message that the compiler will use when reporting a use of the API the attribute applies to.</param>
+        public ExperimentalAttribute(string diagnosticId, string? message) : this(diagnosticId)
+        {
+            Message = message;
+        }
+
+        /// <summary>
         ///  Gets the ID that the compiler will use when reporting a use of the API the attribute applies to.
         /// </summary>
         /// <value>The unique diagnostic ID.</value>
@@ -48,6 +59,14 @@ namespace System.Diagnostics.CodeAnalysis
         ///  <para>This property represents the unique ID that can be used to suppress the warnings or errors, if needed.</para>
         /// </remarks>
         public string DiagnosticId { get; }
+
+        /// <summary>
+        ///  Gets the message that the compiler will use when reporting a use of the API the attribute applies to.
+        /// </summary>
+        /// <remarks>
+        ///  When <c>null</c>, the compiler's default message will be applied.
+        /// </remarks>
+        public string? Message { get; }
 
         /// <summary>
         ///  Gets or sets the URL for corresponding documentation.
