@@ -270,6 +270,7 @@ namespace System.ComponentModel.DataAnnotations
     public partial class RegularExpressionAttribute : System.ComponentModel.DataAnnotations.ValidationAttribute
     {
         public RegularExpressionAttribute([System.Diagnostics.CodeAnalysis.StringSyntaxAttribute("Regex")] string pattern) { }
+        public RegularExpressionAttribute([System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembersAttribute(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.AllMethods)] System.Type regexType, string regexMethodName) { }
         public System.TimeSpan MatchTimeout { get { throw null; } }
         public int MatchTimeoutInMilliseconds { get { throw null; } set { } }
         public string Pattern { get { throw null; } }
@@ -359,8 +360,8 @@ namespace System.ComponentModel.DataAnnotations
     {
         public ValidationException() { }
         public ValidationException(System.ComponentModel.DataAnnotations.ValidationResult validationResult, System.ComponentModel.DataAnnotations.ValidationAttribute? validatingAttribute, object? value) { }
-        [System.ObsoleteAttribute("This API supports obsolete formatter-based serialization. It should not be called or extended by application code.", DiagnosticId = "SYSLIB0051", UrlFormat = "https://aka.ms/dotnet-warnings/{0}")]
         [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Never)]
+        [System.ObsoleteAttribute("This API supports obsolete formatter-based serialization. It should not be called or extended by application code.", DiagnosticId="SYSLIB0051", UrlFormat="https://aka.ms/dotnet-warnings/{0}")]
         protected ValidationException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context) { }
         public ValidationException(string? message) { }
         public ValidationException(string? errorMessage, System.ComponentModel.DataAnnotations.ValidationAttribute? validatingAttribute, object? value) { }

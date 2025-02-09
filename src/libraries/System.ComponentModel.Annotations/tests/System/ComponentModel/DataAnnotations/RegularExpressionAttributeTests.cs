@@ -81,12 +81,14 @@ namespace System.ComponentModel.DataAnnotations.Tests
             Assert.Throws<RegexMatchTimeoutException>(() => attribute.Validate("aaaaaaaaaaaaaaaaaaaaaaaaaaaa>", new ValidationContext(new object())));
         }
 
+#pragma warning disable RE0001 // Invalid regular expression pattern
         [Fact]
         public static void Validate_InvalidPattern_ThrowsArgumentException()
         {
             RegularExpressionAttribute attribute = new RegularExpressionAttribute("foo(?<1bar)");
             Assert.ThrowsAny<ArgumentException>(() => attribute.Validate("Any", new ValidationContext(new object())));
         }
+#pragma warning restore RE0001
 
         public class ClassWithValidToString
         {

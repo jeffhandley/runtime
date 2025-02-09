@@ -192,6 +192,9 @@
   <data name="RegularExpressionAttribute_Empty_Pattern" xml:space="preserve">
     <value>The pattern must be set to a valid regular expression.</value>
   </data>
+  <data name="RegularExpressionAttribute_RegexMemberError" xml:space="preserve">
+    <value>The specified Regex type or method name could not be referenced, or the method does not return a Regex instance.</value>
+  </data>
   <data name="RequiredAttribute_ValidationError" xml:space="preserve">
     <value>The {0} field is required.</value>
   </data>
