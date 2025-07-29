@@ -5,9 +5,9 @@
 Documentation can be found at https://learn.microsoft.com/dotnet/core/extensions/options.
 
 ## Contribution Bar
-- [x] [We consider new features, new APIs, bug fixes, and performance changes](../../libraries/README.md#primary-bar)
+- [x] [We consider new features, new APIs, bug fixes, and performance changes](../README.md#primary-bar)
 
-Although the types are mature, the code base continues to evolve for better performance.
+Although the types are mature, the code base continues to evolve for better performance and integration into new application models.
 
 ## Deployment
 [Microsoft.Extensions.Options](https://www.nuget.org/packages/Microsoft.Extensions.Options) is not included in the shared framework. The package is deployed as out-of-band (OOB) and needs to be installed into projects directly.

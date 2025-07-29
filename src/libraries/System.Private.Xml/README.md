@@ -1,4 +1,5 @@
 # System.Private.Xml
+
 This is the primary XML (eXtensible Markup Language) assembly. It provides standards-based support for processing XML.
 
 It provides core implementations of various types including [`XMLReader`](https://learn.microsoft.com/dotnet/api/system.xml.xmlreader), [`XMLWriter`](https://learn.microsoft.com/dotnet/api/system.xml.xmlwriter), [`XMLDocument`](https://learn.microsoft.com/dotnet/api/system.xml.xmldocument), [`XMLSerializer`](https://learn.microsoft.com/dotnet/api/system.xml.serialization.xmlserializer), and more. These types are exposed via the various `System.Xml[.*]` assemblies.
@@ -6,7 +7,7 @@ It provides core implementations of various types including [`XMLReader`](https:
 Documentation can be found at https://learn.microsoft.com/dotnet/standard/serialization/introducing-xml-serialization.
 
 ## Contribution Bar
-- [x] [We only consider lower-risk or high-impact fixes to maintain or improve quality](../../libraries/README.md#primary-bar)
+- [x] [We only consider fixes that unblock critical issues](../README.md#primary-bar)
 
 ## Source
 

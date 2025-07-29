@@ -4,7 +4,7 @@ This assembly provides support for claims-based identities for the [System.Secur
 
 ## Contribution Bar
 
-- [x] [We only consider lower-risk or high-impact fixes to maintain or improve quality](../README.md#primary-bar)
+- [x] [We only consider fixes that unblock critical issues](../README.md#primary-bar)
 
 ## Source
 

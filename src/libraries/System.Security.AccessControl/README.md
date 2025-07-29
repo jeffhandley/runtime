@@ -4,7 +4,7 @@ This assembly provides support for working with Access Control Lists (ACLs) on t
 
 ## Contribution Bar
 
-- [x] [We only consider lower-risk or high-impact fixes to maintain or improve quality](../README.md#primary-bar)
+- [x] [We only consider fixes that unblock critical issues](../README.md#primary-bar)
 
 ## Deployment
 

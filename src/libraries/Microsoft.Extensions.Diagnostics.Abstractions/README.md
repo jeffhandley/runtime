@@ -13,9 +13,7 @@ Commonly Used Types:
 Documentation can be found at https://learn.microsoft.com/dotnet/core/extensions/diagnostics.
 
 ## Contribution Bar
-- [x] [We consider new features, new APIs, bug fixes, and performance changes](../../libraries/README.md#primary-bar)
-
-The APIs and functionality are new in .NET 8 and will continue to be developed.
+- [x] [We consider new features, new APIs, bug fixes, and performance changes](../README.md#primary-bar)
 
 ## Deployment
 [Microsoft.Extensions.Diagnostics.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.Diagnostics.Abstractions) is included in the ASP.NET Core shared framework. The package is deployed as out-of-band (OOB) too and can be referenced into projects directly.

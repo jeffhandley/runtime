@@ -9,7 +9,7 @@ Hosting provides good integration for long-running console applications, windows
 Documentation can be found at https://learn.microsoft.com/dotnet/core/extensions/generic-host.
 
 ## Contribution Bar
-- [x] [We consider new features, new APIs, bug fixes, and performance changes](../../libraries/README.md#primary-bar)
+- [x] [We consider new features, new APIs, bug fixes, and performance changes](../README.md#primary-bar)
 
 The APIs and functionality are mature and there is no active plan for investment but we are open to explore ideas to invest in it in more depth in the future. The ideal future investments here may be to:
 
@@ -19,4 +19,3 @@ The APIs and functionality are mature and there is no active plan for investment
 
 ## Deployment
 [Microsoft.Extensions.Hosting](https://www.nuget.org/packages/Microsoft.Extensions.Hosting) is not included in the shared framework. The package is deployed as out-of-band (OOB) and needs to be installed into projects directly.
-

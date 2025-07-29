@@ -4,7 +4,7 @@ This assembly provides APIs for managing access and audit control lists for Micr
 
 ## Contribution Bar
 
-- [x] [We only consider fixes to maintain or improve quality](../README.md#primary-bar)
+- [x] [We only consider lower-risk or high-impact fixes to maintain or improve quality](../README.md#primary-bar)
 - [x] [We consider PRs that target this library for new source code analyzers](../README.md#secondary-bars)
 - [x] [We consider PRs with refactoring changes due to new language features](../README.md#secondary-bars)
 

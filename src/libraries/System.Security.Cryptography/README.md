@@ -12,8 +12,8 @@ Documentation can be found at https://learn.microsoft.com/dotnet/api/system.secu
 
 ## Contribution Bar
 
-- [x] [We consider new features, new APIs and performance changes](../../libraries/README.md#primary-bar)
-- [x] [We consider PRs that target this library for new source code analyzers](../../libraries/README.md#secondary-bars)
+- [x] [We consider new features, new APIs and performance changes](../README.md#primary-bar)
+- [x] [We consider PRs that target this library for new source code analyzers](../README.md#secondary-bars)
 
 When contributing to this area, please consider:
 

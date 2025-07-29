@@ -1,4 +1,5 @@
 # System.Private.Xml.Linq
+
 This assembly implements APIs for processing XML entities with LINQ operations, along with APIs to navigate and validate these entities. See the [`System.Private.Xml` README file](../System.Private.Xml/README.md) for an overview of the XML-processing libraries the framework provides.
 
 It provides core implementations of [`XDocument`](https://learn.microsoft.com/dotnet/api/system.xml.linq.xdocument), [`XContainer`](https://learn.microsoft.com/dotnet/api/system.xml.linq.xcontainer), and related types.
@@ -6,7 +7,7 @@ It provides core implementations of [`XDocument`](https://learn.microsoft.com/do
 Documentation can be found at https://learn.microsoft.com/dotnet/standard/linq/linq-xml-overview.
 
 ## Contribution Bar
-- [x] [We only consider lower-risk or high-impact fixes to maintain or improve quality](../../libraries/README.md#primary-bar)
+- [x] [We only consider fixes that unblock critical issues](../README.md#primary-bar)
 
 ## Source
 * XDocument: [../System.Xml.XDocument](../System.Xml.XDocument)

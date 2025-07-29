@@ -30,9 +30,9 @@ public class MyOptions
 upon startup we will get an error stating that the Name field is required.
 
 ## Contribution Bar
-- [x] [We consider new features, new APIs, bug fixes, and performance changes](../../libraries/README.md#primary-bar)
+- [x] [We consider new features, new APIs, bug fixes, and performance changes](../README.md#primary-bar)
 
-Although the types are mature, the code base continues to evolve for better performance.
+Although the types are mature, the code base continues to evolve for better performance and integration into new application models.
 
 ## Deployment
 [Microsoft.Extensions.Options.DataAnnotations](https://www.nuget.org/packages/Microsoft.Extensions.Options.DataAnnotations) is not included in the shared framework. The package is deployed as out-of-band (OOB) and needs to be installed into projects directly.

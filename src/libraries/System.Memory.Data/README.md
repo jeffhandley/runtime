@@ -1,13 +1,20 @@
-#  System.Memory.Data library for .NET
+#  System.Memory.Data
+
+## Contribution Bar
+
+- [x] [We consider new features, new APIs and performance changes](../README.md#primary-bar)
+
+## Deployment
+[System.Memory.Data](https://www.nuget.org/packages/System.Memory.Data) is not included in the shared framework. The package is deployed as out-of-band (OOB) and needs to be installed into projects directly.
 
 ## Binary Data
- The `BinaryData` type provides a lightweight abstraction for a payload of bytes. It provides convenient helper methods to get out commonly used primitives, such as streams, strings, or bytes. The assumption when converting to and from string is that the encoding is UTF-8.
+The `BinaryData` type provides a lightweight abstraction for a payload of bytes. It provides convenient helper methods to get out commonly used primitives, such as streams, strings, or bytes. The assumption when converting to and from string is that the encoding is UTF-8.
 
- ### Data ownership
- When using the `byte[]` or `ReadOnlyMemory<byte>` constructors or methods, `BinaryData` will wrap the passed in bytes. When using streams, strings, or rich model types that will be serialized as Json, the data is converted into bytes and will be maintained by `BinaryData`. Thus, if you are using bytes to create your instance of `BinaryData`, changes to the underlying data will be reflected in `BinaryData` as it does not copy the bytes.
+### Data ownership
+When using the `byte[]` or `ReadOnlyMemory<byte>` constructors or methods, `BinaryData` will wrap the passed in bytes. When using streams, strings, or rich model types that will be serialized as Json, the data is converted into bytes and will be maintained by `BinaryData`. Thus, if you are using bytes to create your instance of `BinaryData`, changes to the underlying data will be reflected in `BinaryData` as it does not copy the bytes.
 
- ### Usage
- The main value of this type is its ability to easily convert from string to bytes to stream. This can greatly simplify API surface areas by exposing this type as opposed to numerous overloads or properties.
+### Usage
+The main value of this type is its ability to easily convert from string to bytes to stream. This can greatly simplify API surface areas by exposing this type as opposed to numerous overloads or properties.
 
 To/From string:
 ```C# Snippet:BinaryDataToFromString
@@ -62,6 +69,3 @@ var model = new CustomModel
 var data = BinaryData.FromObjectAsJson(model);
 model = data.ToObjectFromJson<CustomModel>();
 ```
-
-
-

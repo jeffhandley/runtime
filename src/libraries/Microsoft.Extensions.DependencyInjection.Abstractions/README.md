@@ -5,9 +5,7 @@
 Documentation can be found at https://learn.microsoft.com/dotnet/core/extensions/dependency-injection.
 
 ## Contribution Bar
-- [x] [We consider new features, new APIs, bug fixes, and performance changes](../../libraries/README.md#primary-bar)
-
-The APIs and functionality need more investment in the upcoming .NET releases.
+- [x] [We consider new features, new APIs, bug fixes, and performance changes](../README.md#primary-bar)
 
 ## Deployment
 [Microsoft.Extensions.DependencyInjection.Abstractions](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection.Abstractions) is included in the ASP.NET Core shared framework. The package is deployed as out-of-band (OOB) too and can be referenced into projects directly.

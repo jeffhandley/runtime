@@ -20,7 +20,7 @@ See the [Help Wanted](https://github.com/dotnet/runtime/issues?q=is:issue+is:ope
 ## Source
 
 * The source code for this assembly is in the [src](src/) subdirectory.
-* Crytographic primitives are in the [System.Security.Cryptography](../System.Security.Cryptography/) assembly.
+* Cryptographic primitives are in the [System.Security.Cryptography](../System.Security.Cryptography/) assembly.
 * Lower-level CBOR parsing is in the [System.Formats.Cbor](../System.Formats.Cbor/) assembly.
 
 ## Deployment

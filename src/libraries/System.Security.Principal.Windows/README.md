@@ -4,7 +4,7 @@ This assembly provides support for [System.Security.Principal.IIdentity](https:/
 
 ## Contribution Bar
 
-- [x] [We only consider fixes to maintain or improve quality](../README.md#primary-bar)
+- [x] [We only consider fixes that unblock critical issues](../README.md#primary-bar)
 
 ## Source
 
