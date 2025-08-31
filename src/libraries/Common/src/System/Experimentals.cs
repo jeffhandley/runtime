@@ -16,8 +16,7 @@ namespace System
         // but retained in the table in docs\project\list-of-diagnostics.md to prevent reuse. Be sure to remove
         // suppressions from the codebase as well.
 
-        // Tensor<T> and related APIs in System.Numerics.Tensors are experimental
-        internal const string TensorTDiagId = "SYSLIB5001";
+        // Tensor<T> and related APIs in System.Numerics.Tensors were experimental, do not reuse "SYSLIB5001"
 
         // SystemColors alternate colors are marked as [Experimental]
         internal const string SystemColorsDiagId = "SYSLIB5002";
