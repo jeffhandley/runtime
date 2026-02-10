@@ -30,6 +30,20 @@ on:
           - "Train Model"
           - "Test Model"
 
+      # NEW: override the target repository (org/name), e.g. dotnet/runtime
+      repository:
+        description: "Target repository in owner/name format (e.g. dotnet/runtime). Defaults to this repository."
+        type: string
+        required: false
+        default: ""
+
+      # NEW: override the prediction threshold (string because actions typically treat inputs as strings)
+      threshold:
+        description: "Override the label prediction threshold (e.g. 0.28). Defaults to 0.40."
+        type: string
+        required: false
+        default: "0.40"
+
       limit:
         description: "Max number of items to download for training/testing the model (newest items are used). Defaults to the max number of pages times the page size."
         type: number
@@ -46,9 +60,10 @@ on:
 
 env:
   CACHE_KEY: ${{ inputs.cache_key_suffix }}
-  REPOSITORY: ${{ github.repository }}
+  # Use the provided repository if non-empty; otherwise default to the current repo.
+  REPOSITORY: ${{ inputs.repository != '' && inputs.repository || github.repository }}
   LABEL_PREFIX: "area-"
-  THRESHOLD: "0.40"
+  THRESHOLD: ${{ inputs.threshold }}
   LIMIT: ${{ inputs.limit }}
   PAGE_SIZE: ${{ inputs.page_size }}
   PAGE_LIMIT: ${{ inputs.page_limit }}
