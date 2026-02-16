@@ -159,7 +159,7 @@ namespace Internal.IL
                 _dependencies.Add(GetHelperEntrypoint(ReadyToRunHelper.MonitorExit), reason);
                 if (_canonMethod.Signature.IsStatic)
                 {
-                    _dependencies.Add(_compilation.NodeFactory.MethodEntrypoint(_compilation.NodeFactory.TypeSystemContext.GetCoreLibEntryPoint("System.Threading"u8, "Monitor"u8, "GetSyncObjectFromClassHandle"u8, null)), reason);
+                    _dependencies.Add(_compilation.NodeFactory.MethodEntrypoint(_compilation.NodeFactory.TypeSystemContext.GetCoreLibEntryPoint("System"u8, "Type"u8, "GetTypeFromMethodTable"u8, null)), reason);
 
                     MethodDesc method = _methodIL.OwningMethod;
                     if (method.OwningType.IsRuntimeDeterminedSubtype)
@@ -174,7 +174,7 @@ namespace Internal.IL
                     if (_canonMethod.IsCanonicalMethod(CanonicalFormKind.Any))
                     {
                         if (_canonMethod.RequiresInstMethodDescArg())
-                            _dependencies.Add(_compilation.NodeFactory.MethodEntrypoint(_compilation.NodeFactory.TypeSystemContext.GetCoreLibEntryPoint("System.Threading"u8, "Monitor"u8, "GetClassHandleFromMethodParam"u8, null)), reason);
+                            _dependencies.Add(_compilation.NodeFactory.MethodEntrypoint(_compilation.NodeFactory.TypeSystemContext.GetCoreLibEntryPoint("Internal.Runtime.CompilerHelpers"u8, "SharedCodeHelpers"u8, "GetClassHandleFromMethodParam"u8, null)), reason);
                     }
                 }
             }
@@ -467,15 +467,17 @@ namespace Internal.IL
 
                     DefType asyncHelpers = _compilation.TypeSystemContext.SystemModule.GetKnownType("System.Runtime.CompilerServices"u8, "AsyncHelpers"u8);
 
-                    _dependencies.Add(_factory.MethodEntrypoint(asyncHelpers.GetKnownMethod("AllocContinuation"u8, null)), asyncReason);
+                    _dependencies.Add(_compilation.GetHelperEntrypoint(ReadyToRunHelper.AllocContinuation), asyncReason);
                     _dependencies.Add(_factory.MethodEntrypoint(asyncHelpers.GetKnownMethod("CaptureExecutionContext"u8, null)), asyncReason);
                     _dependencies.Add(_factory.MethodEntrypoint(asyncHelpers.GetKnownMethod("RestoreExecutionContext"u8, null)), asyncReason);
                     _dependencies.Add(_factory.MethodEntrypoint(asyncHelpers.GetKnownMethod("CaptureContinuationContext"u8, null)), asyncReason);
+                    _dependencies.Add(_factory.MethodEntrypoint(asyncHelpers.GetKnownMethod("RestoreContextsOnSuspension"u8, null)), asyncReason);
                 }
 
                 // If this is the task await pattern, we're actually going to call the variant
                 // so switch our focus to the variant.
                 if (method.GetTypicalMethodDefinition().Signature.ReturnsTaskOrValueTask()
+                    && !method.OwningType.IsDelegate
                     && MatchTaskAwaitPattern())
                 {
                     runtimeDeterminedMethod = _factory.TypeSystemContext.GetAsyncVariantMethod(runtimeDeterminedMethod);
@@ -607,14 +609,19 @@ namespace Internal.IL
                 if (constrained.IsRuntimeDeterminedSubtype)
                     constrained = constrained.ConvertToCanonForm(CanonicalFormKind.Specific);
 
-                MethodDesc directMethod = constrained.GetClosestDefType().TryResolveConstraintMethodApprox(method.OwningType, method, out forceUseRuntimeLookup, ref staticResolution);
-                if (directMethod == null && constrained.IsEnum)
+                if (constrained.IsEnum)
                 {
-                    // Constrained calls to methods on enum methods resolve to System.Enum's methods. System.Enum is a reference
-                    // type though, so we would fail to resolve and box. We have a special path for those to avoid boxing.
-                    directMethod = _compilation.TypeSystemContext.TryResolveConstrainedEnumMethod(constrained, method);
+                    // Optimize constrained calls to enum's GetHashCode method. TryResolveConstraintMethodApprox would return
+                    // null since the virtual method resolves to System.Enum's implementation and that's a reference type.
+                    // We can't do this for any other method since ToString and Equals have different semantics for enums
+                    // and their underlying type.
+                    if (method.OwningType.IsObject && method.Name.SequenceEqual("GetHashCode"u8))
+                    {
+                        constrained = constrained.UnderlyingType;
+                    }
                 }
 
+                MethodDesc directMethod = constrained.GetClosestDefType().TryResolveConstraintMethodApprox(method.OwningType, method, out forceUseRuntimeLookup, ref staticResolution);
                 if (directMethod != null)
                 {
                     // Either
@@ -776,22 +783,23 @@ namespace Internal.IL
                     {
                         ISymbolNode instParam = null;
 
-                        if (targetMethod.RequiresInstMethodDescArg())
+                        if (!_canonMethod.IsSharedByGenericInstantiations)
+                        {
+                            // Some handemitted IL helpers will call __Canon methods directly from unshared context.
+                            // This is fine, we just don't report any dependencies for the exact instantiation.
+                        }
+                        else if (targetMethod.RequiresInstMethodDescArg())
                         {
                             instParam = GetGenericLookupHelper(ReadyToRunHelperId.MethodDictionary, runtimeDeterminedMethod);
                         }
                         else if (targetMethod.RequiresInstMethodTableArg())
                         {
-                            bool hasHiddenParameter = true;
-
-                            if (targetMethod.IsIntrinsic)
-                            {
-                                if (_factory.TypeSystemContext.IsSpecialUnboxingThunkTargetMethod(targetMethod))
-                                    hasHiddenParameter = false;
-                            }
-
-                            if (hasHiddenParameter)
-                                instParam = GetGenericLookupHelper(ReadyToRunHelperId.TypeHandle, runtimeDeterminedMethod.OwningType);
+                            instParam = GetGenericLookupHelper(ReadyToRunHelperId.TypeHandle, runtimeDeterminedMethod.OwningType);
+                        }
+                        else
+                        {
+                            Debug.Assert(targetMethod.AcquiresInstMethodTableFromThis());
+                            _dependencies.Add(_factory.ShadowNonConcreteMethod(concreteMethod), reason);
                         }
 
                         if (instParam != null)
