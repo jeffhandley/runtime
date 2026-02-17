@@ -16,13 +16,19 @@ namespace System.Tests
     {
         public static IEnumerable<object[]> UninstallableSignals()
         {
+            yield return new object[] { PosixSignal.SIGKILL };
             yield return new object[] { (PosixSignal)9 };
         }
 
         public static IEnumerable<object[]> SupportedSignals()
         {
             foreach (PosixSignal value in Enum.GetValues(typeof(PosixSignal)))
-                yield return new object[] { value };
+            {
+                if (value != PosixSignal.SIGKILL)
+                {
+                    yield return new object[] { value };
+                }
+            }
         }
 
         public static IEnumerable<object[]> UnsupportedSignals()
@@ -126,6 +132,41 @@ namespace System.Tests
         }
 
         [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsNotMobile))]
+        public void SignalHandlersCalledInReverseOrder()
+        {
+            PosixSignal signal = PosixSignal.SIGCONT;
+            bool secondHandlerCalled = false;
+
+            using SemaphoreSlim semaphore = new(0);
+            using var first = PosixSignalRegistration.Create(signal, ctx =>
+            {
+                Assert.Equal(signal, ctx.Signal);
+
+                // Ensure signal doesn't cause the process to terminate.
+                ctx.Cancel = true;
+
+                Assert.True(secondHandlerCalled);
+
+                semaphore.Release();
+            });
+
+            using var second = PosixSignalRegistration.Create(signal, ctx =>
+            {
+                Assert.Equal(signal, ctx.Signal);
+
+                // Ensure signal doesn't cause the process to terminate.
+                ctx.Cancel = true;
+
+                Assert.False(secondHandlerCalled);
+                secondHandlerCalled = true;
+            });
+
+            kill(signal);
+            bool entered = semaphore.Wait(SuccessTimeout);
+            Assert.True(entered);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsNotMobile))]
         public void SignalHandlerNotCalledWhenDisposed()
         {
             PosixSignal signal = PosixSignal.SIGCONT;
@@ -217,7 +258,12 @@ namespace System.Tests
                 var data = new TheoryData<PosixSignal>();
                 foreach (var value in Enum.GetValues(typeof(PosixSignal)))
                 {
-                    int signo = GetPlatformSignalNumber((PosixSignal)value);
+                    PosixSignal signal = (PosixSignal)value;
+                    if (signal == PosixSignal.SIGKILL)
+                    {
+                        continue; // SIGKILL cannot be registered
+                    }
+                    int signo = GetPlatformSignalNumber(signal);
                     Assert.True(signo > 0, "Expected raw signal number to be greater than 0.");
                     data.Add((PosixSignal)signo);
                 }

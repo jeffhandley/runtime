@@ -21,7 +21,7 @@ export PYTHON
 usage_list+=("-pgodatapath: path to profile guided optimization data.")
 usage_list+=("-pgoinstrument: generate instrumented code for profile guided optimization enabled binaries.")
 usage_list+=("-staticanalyzer: use scan_build static analyzer.")
-usage_list+=("-component: Build individual components instead of the full project. Available options are 'hosts', 'jit', 'runtime', 'paltests', 'alljits', 'iltools', 'nativeaot', and 'spmi'. Can be specified multiple times.")
+usage_list+=("-component: Build individual components instead of the full project. Available options are 'hosts', 'jit', 'runtime', 'paltests', 'alljits', 'alljitscommunity', 'iltools', 'nativeaot', and 'spmi'. Can be specified multiple times.")
 usage_list+=("-subdir: Append a directory with the provided name to the obj and bin paths.")
 
 setup_dirs_local()
@@ -99,7 +99,6 @@ __SkipRestore=""
 __SourceDir="$__ProjectDir/src"
 __StaticAnalyzer=0
 __UnprocessedBuildArgs=
-__UseNinja=0
 __VerboseBuild=0
 __CMakeArgs=""
 __RequestedBuildComponents=""

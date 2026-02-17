@@ -6,10 +6,28 @@
 
 namespace System.IO.Hashing
 {
+    public sealed partial class Adler32 : System.IO.Hashing.NonCryptographicHashAlgorithm
+    {
+        public Adler32() : base (default(int)) { }
+        public override void Append(System.ReadOnlySpan<byte> source) { }
+        public System.IO.Hashing.Adler32 Clone() { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public uint GetCurrentHashAsUInt32() { throw null; }
+        protected override void GetCurrentHashCore(System.Span<byte> destination) { }
+        protected override void GetHashAndResetCore(System.Span<byte> destination) { }
+        public static byte[] Hash(byte[] source) { throw null; }
+        public static byte[] Hash(System.ReadOnlySpan<byte> source) { throw null; }
+        public static int Hash(System.ReadOnlySpan<byte> source, System.Span<byte> destination) { throw null; }
+        [System.CLSCompliantAttribute(false)]
+        public static uint HashToUInt32(System.ReadOnlySpan<byte> source) { throw null; }
+        public override void Reset() { }
+        public static bool TryHash(System.ReadOnlySpan<byte> source, System.Span<byte> destination, out int bytesWritten) { throw null; }
+    }
     public sealed partial class Crc32 : System.IO.Hashing.NonCryptographicHashAlgorithm
     {
         public Crc32() : base (default(int)) { }
         public override void Append(System.ReadOnlySpan<byte> source) { }
+        public System.IO.Hashing.Crc32 Clone() { throw null; }
         [System.CLSCompliantAttribute(false)]
         public uint GetCurrentHashAsUInt32() { throw null; }
         protected override void GetCurrentHashCore(System.Span<byte> destination) { }
@@ -25,6 +43,7 @@ namespace System.IO.Hashing
     public sealed partial class Crc64 : System.IO.Hashing.NonCryptographicHashAlgorithm
     {
         public Crc64() : base (default(int)) { }
+        public System.IO.Hashing.Crc64 Clone() { throw null; }
         public override void Append(System.ReadOnlySpan<byte> source) { }
         [System.CLSCompliantAttribute(false)]
         public ulong GetCurrentHashAsUInt64() { throw null; }
@@ -64,6 +83,7 @@ namespace System.IO.Hashing
         public XxHash128() : base (default(int)) { }
         public XxHash128(long seed) : base (default(int)) { }
         public override void Append(System.ReadOnlySpan<byte> source) { }
+        public System.IO.Hashing.XxHash128 Clone() { throw null; }
         protected override void GetCurrentHashCore(System.Span<byte> destination) { }
         public static byte[] Hash(byte[] source) { throw null; }
         public static byte[] Hash(byte[] source, long seed) { throw null; }
@@ -77,6 +97,7 @@ namespace System.IO.Hashing
         public XxHash3() : base (default(int)) { }
         public XxHash3(long seed) : base (default(int)) { }
         public override void Append(System.ReadOnlySpan<byte> source) { }
+        public System.IO.Hashing.XxHash3 Clone() { throw null; }
         [System.CLSCompliantAttribute(false)]
         public ulong GetCurrentHashAsUInt64() { throw null; }
         protected override void GetCurrentHashCore(System.Span<byte> destination) { }
@@ -94,6 +115,7 @@ namespace System.IO.Hashing
         public XxHash32() : base (default(int)) { }
         public XxHash32(int seed) : base (default(int)) { }
         public override void Append(System.ReadOnlySpan<byte> source) { }
+        public System.IO.Hashing.XxHash32 Clone() { throw null; }
         [System.CLSCompliantAttribute(false)]
         public uint GetCurrentHashAsUInt32() { throw null; }
         protected override void GetCurrentHashCore(System.Span<byte> destination) { }
@@ -111,6 +133,7 @@ namespace System.IO.Hashing
         public XxHash64() : base (default(int)) { }
         public XxHash64(long seed) : base (default(int)) { }
         public override void Append(System.ReadOnlySpan<byte> source) { }
+        public System.IO.Hashing.XxHash64 Clone() { throw null; }
         [System.CLSCompliantAttribute(false)]
         public ulong GetCurrentHashAsUInt64() { throw null; }
         protected override void GetCurrentHashCore(System.Span<byte> destination) { }
