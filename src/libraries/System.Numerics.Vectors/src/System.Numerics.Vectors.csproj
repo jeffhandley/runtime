@@ -3,8 +3,24 @@
   <PropertyGroup>
     <TargetFramework>$(NetCoreAppCurrent)</TargetFramework>
     <IsPartialFacadeAssembly>true</IsPartialFacadeAssembly>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseCompilerGeneratedDocXmlFile>false</UseCompilerGeneratedDocXmlFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="System\ThrowHelper.cs" />
+    <Compile Include="System\Numerics\Colors\Argb.cs" />
+    <Compile Include="System\Numerics\Colors\Argb.T.cs" />
+    <Compile Include="System\Numerics\Colors\Rgba.cs" />
+    <Compile Include="System\Numerics\Colors\Rgba.T.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Strings.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+    </EmbeddedResource>
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="$(CoreLibProject)" />
