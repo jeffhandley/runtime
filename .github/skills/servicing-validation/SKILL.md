@@ -247,6 +247,18 @@ Based on the changed files and area labels, assign each product PR a component:
 - **Host** — changes under `src/native/corehost/` or `src/installer/`
 - **Mixed** — changes spanning multiple components
 
+### Determine responsible lead
+
+Using the PR's labels and the area ownership data in [docs/area-owners.md](../../docs/area-owners.md), determine the **lead** responsible for each fix. Apply labels in this priority order (higher priority overrides lower):
+
+1. **`os-` labels**: If the PR (or its main PR) has an `os-` label listed in the Operating Systems table (e.g., `os-android`, `os-browser`), use that table's Lead.
+2. **`arch-` labels**: If the PR has an `arch-` label listed in the Architectures table (e.g., `arch-wasm`, `arch-riscv`), use that table's Lead.
+3. **`area-` labels**: Use the Areas table's Lead for the PR's `area-` label. If the PR has multiple `area-` labels, prefer the one matching the most changed files.
+
+If no label-to-lead mapping is found (e.g., the PR has no recognized labels, or the label has no lead assigned), record `lead` as `unknown` and note this in the output.
+
+Record the lead as a GitHub username (e.g., `@karelz`) on each servicing PR and propagate it to the fix group.
+
 ## Step 4: Group by Fix Lineage
 
 Group servicing PRs into **fix groups** where each group represents a single logical fix applied to one or more release branches.
@@ -265,6 +277,7 @@ Each fix group should contain:
 - **Servicing PRs**: Map of version → PR number for each release branch
 - **Component**: Libraries, CoreCLR, Mono, etc.
 - **Area**: The area label
+- **Lead**: The responsible lead (from area-owners.md, with os/arch override)
 - **Fix description**: From the main PR title (stripped of `[release/X.0]` prefix)
 - **Issue unknown**: Flag if no issue could be identified
 - **Direct to release**: Flag if there is no main PR
@@ -278,13 +291,13 @@ Display the results organized by fix lineage.
 Present each fix group as a row, showing the full lineage. Annotate servicing PR cells with the servicing label state when it is not `approved`:
 
 ```
-| Issue | Fix Description | Component | Area | Main PR | 8.0 | 9.0 | 10.0 |
-|-------|----------------|-----------|------|---------|-----|-----|------|
-| #123586 | Fix Vector2/3 EqualsAny | Libraries | System.Numerics | #123594 | - | - | #124223 |
-| #121193 | Fix binding IEnumerable<T> with empty array | Libraries | Extensions.Configuration | #121249 | - | - | #121325 |
-| #124071 | Fix missing release semantics in VolatilePtr | CoreCLR | VM | #124096 | - | - | #124070 ⚑ |
-| ⚠️ ? | [mono][hotreload] Ignore empty update | Mono | Mono | #120333 | #123547 | - | - |
-| #125000 | Fix timeout in HttpClient | Libraries | Networking | #124900 | - | - | #125100 🔵 |
+| Issue | Fix Description | Lead | Component | Area | Main PR | 8.0 | 9.0 | 10.0 |
+|-------|----------------|------|-----------|------|---------|-----|-----|------|
+| #123586 | Fix Vector2/3 EqualsAny | @jeffhandley | Libraries | System.Numerics | #123594 | - | - | #124223 |
+| #121193 | Fix binding IEnumerable<T> with empty array | @karelz | Libraries | Extensions.Configuration | #121249 | - | - | #121325 |
+| #124071 | Fix missing release semantics in VolatilePtr | @agocke | CoreCLR | VM | #124096 | - | - | #124070 ⚑ |
+| ⚠️ ? | [mono][hotreload] Ignore empty update | @steveisok | Mono | Mono | #120333 | #123547 | - | - |
+| #125000 | Fix timeout in HttpClient | @karelz | Libraries | Networking | #124900 | - | - | #125100 🔵 |
 ```
 
 Legend:
@@ -412,7 +425,8 @@ CREATE TABLE servicing_prs (
     in_scope INTEGER DEFAULT 1,
     main_pr INTEGER,
     direct_to_release INTEGER DEFAULT 0,
-    servicing_state TEXT DEFAULT 'none'
+    servicing_state TEXT DEFAULT 'none',
+    lead TEXT
 );
 ```
 
@@ -425,6 +439,7 @@ CREATE TABLE fix_groups (
     fix_description TEXT,
     component TEXT,
     area TEXT,
+    lead TEXT,
     issue_unknown INTEGER DEFAULT 0,
     direct_to_release INTEGER DEFAULT 0
 );
@@ -459,6 +474,7 @@ Final curated list with lineage:
 SELECT
     fg.group_id,
     fg.fix_description,
+    fg.lead,
     fg.component,
     fg.area,
     fg.main_pr,
