@@ -13,24 +13,96 @@ Use this skill when:
 - Preparing validation tests for an upcoming .NET servicing release
 - Reviewing what fixes are shipping in the next 8.0, 9.0, or 10.0 patch
 - Asked to "validate servicing", "list servicing PRs", or "what's shipping next patch Tuesday"
+- Given a specific version like "validate 10.0.4" or "March servicing for 9.0 and 10.0"
+- Asked about upcoming servicing for a specific month like "March servicing" or "April Patch Tuesday"
 
-## Step 1: Detect Current and Upcoming Versions
+## Step 1: Resolve Target Versions
 
-Fetch the .NET downloads page to determine the latest shipped versions:
+The user can specify which servicing versions to validate in several ways. Parse the user's prompt to determine the target versions, then confirm with the user before proceeding.
+
+### Input formats
+
+The user may specify targets in any of these formats:
+
+| User says | Meaning |
+|-----------|---------|
+| `10.0.4` | Explicit patch version |
+| `10.0.4, 9.0.14, 8.0.25` | Multiple explicit versions |
+| `10.0 servicing` | Next upcoming patch for .NET 10.0 |
+| `March servicing` | All active versions' patches for March |
+| `March 10.0 servicing` | .NET 10.0 patch for March specifically |
+| `next servicing` or `upcoming servicing` | Next patch for all active versions |
+| `April servicing` | Predicted versions for a future month |
+| *(no version specified)* | Default to next patch for all active versions |
+
+### Resolving versions
+
+#### 1. Fetch current release data
+
+Fetch the main .NET downloads page and each active version's page:
 
 ```
-https://dotnet.microsoft.com/en-us/download/dotnet
+https://dotnet.microsoft.com/en-us/download/dotnet       (overview — latest versions and dates)
+https://dotnet.microsoft.com/en-us/download/dotnet/10.0   (version history for 10.0)
+https://dotnet.microsoft.com/en-us/download/dotnet/9.0    (version history for 9.0)
+https://dotnet.microsoft.com/en-us/download/dotnet/8.0    (version history for 8.0)
 ```
 
-Extract the latest release version for each active major version (currently 8.0, 9.0, and 10.0). Compute the upcoming patch version by incrementing the patch number by one. For example:
+From the overview page, extract for each active major version:
+- **Latest release version** (e.g., `10.0.3`)
+- **Latest release date** (e.g., `February 10, 2026`)
+- **Support phase** (Active, Maintenance, or End of life)
 
-| Version | Latest Shipped | Upcoming |
-|---------|---------------|----------|
-| .NET 8.0 | 8.0.24 | 8.0.25 |
-| .NET 9.0 | 9.0.13 | 9.0.14 |
-| .NET 10.0 | 10.0.3 | 10.0.4 |
+Only include versions in Active or Maintenance support phase.
 
-Present this version table to the user for confirmation before proceeding. The user may indicate that a version should be skipped or that the upcoming version number is different.
+#### 2. Build the release cadence model
+
+.NET servicing releases ship monthly on **Patch Tuesday** (the second Tuesday of each month). Each release increments the patch number by 1. Use this to build a version-to-month mapping:
+
+From the latest shipped version and its release date, compute:
+- **Current month**: the latest shipped version
+- **Next month (+1)**: patch + 1
+- **Month after (+2)**: patch + 2
+
+Example (from February 2026 baseline):
+
+| Month | .NET 8.0 | .NET 9.0 | .NET 10.0 |
+|-------|----------|----------|-----------|
+| Feb 2026 (shipped) | 8.0.24 | 9.0.13 | 10.0.3 |
+| Mar 2026 (next) | 8.0.25 | 9.0.14 | 10.0.4 |
+| Apr 2026 (predicted) | 8.0.26 | 9.0.15 | 10.0.5 |
+
+For predictions beyond +1, note that they are **predicted** and the actual version may differ if a month is skipped or an out-of-band release occurs.
+
+#### 3. Resolve the user's input
+
+- **Explicit version** (e.g., `10.0.4`): Use directly. Validate it exists as a GitHub milestone.
+- **Major version** (e.g., `10.0 servicing`): Look up the next unshipped patch from the cadence model.
+- **Month name** (e.g., `March servicing`): Map the month to the cadence model. If the month is the current month or earlier, those versions are already shipped. If the month is 1-2 months ahead, use the predicted versions. If further out, warn that predictions become less reliable.
+- **No input**: Default to the next unshipped patch for all active versions.
+
+#### 4. Determine the release branch for each version
+
+| Major Version | Branch Pattern | Example |
+|--------------|----------------|---------|
+| 8.0, 9.0 | `release/X.0-staging` | `release/8.0-staging` |
+| 10.0+ | `release/X.0` | `release/10.0` |
+
+#### 5. Present and confirm
+
+Show the resolved versions to the user:
+
+```
+Target servicing versions:
+  .NET 8.0  → 8.0.25  (branch: release/8.0-staging, last shipped: 8.0.24 on Feb 10)
+  .NET 9.0  → 9.0.14  (branch: release/9.0-staging, last shipped: 9.0.13 on Feb 10)
+  .NET 10.0 → 10.0.4  (branch: release/10.0, last shipped: 10.0.3 on Feb 10)
+```
+
+Use `ask_user` to confirm. The user may:
+- Remove a version from scope (e.g., "skip 8.0")
+- Correct a version number (e.g., "10.0 should be 10.0.5 not 10.0.4")
+- Add a version not initially included
 
 ## Step 2: Collect PRs from Milestones and Branches
 
@@ -216,3 +288,6 @@ SELECT * FROM servicing_prs WHERE in_scope = 1 AND has_product_source = 1 ORDER 
 - **Milestone closures**: Milestones may be closed before the release ships. A closed milestone does not mean it already shipped — check the downloads page for the actual latest version.
 - **Bot PRs to skip**: Filter out PRs authored by `dotnet-maestro[bot]`, `github-actions[bot]` (for merge PRs only — backport PRs from `github-actions[bot]` should be kept), and `dependabot[bot]`.
 - **Backport detection**: The automated backport bot (`github-actions[bot]`) creates PRs with "Backport of #NNNN" in the body. These are real code changes and should NOT be excluded just because the author is a bot.
+- **Version prediction limits**: Monthly cadence predictions are reliable for +1 month, reasonable for +2 months, and unreliable beyond that. Out-of-band releases, skipped months, or end-of-support can alter the pattern. Always warn the user when using predicted versions beyond +1.
+- **End-of-support versions**: .NET 8.0 reaches end of support in November 2026, .NET 9.0 in November 2026. Do not include versions past their end-of-support date in predictions. The downloads overview page shows end-of-support dates.
+- **GA release months**: A major version's first servicing release (X.0.1) ships the month after GA. The GA release itself (X.0.0) does not follow the Patch Tuesday cadence — it ships on its own schedule (typically November for LTS/STS releases).
