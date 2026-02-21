@@ -67,4 +67,75 @@ When no repro is found, record:
 
 ## Validation Approach
 
-*(To be defined — this section will describe how the libraries team produces validation tests from the discovered repros, including test patterns, project structure, and execution.)*
+### Repro Project Creation
+
+For each libraries fix group with a discovered repro, create a repro project under `src/tests/Regressions/libraries/`.
+
+#### Folder naming
+
+Use the **deepest ancestor** in the PR lineage as the folder name:
+
+1. **Issue number** (preferred): If the fix group has a linked issue, use it (e.g., `123586/`)
+2. **Main PR number**: If no issue is linked, use the main PR number (e.g., `123594/`)
+3. **Servicing PR number**: If neither issue nor main PR is clear, use the servicing PR number
+
+When a fix group has multiple issues or PRs, pick the number that best represents the root cause — typically the original customer-reported issue.
+
+#### File structure
+
+For simple repros that can be expressed as a single file, create just a `.cs` file:
+
+```
+src/tests/Regressions/libraries/
+  123586/
+    repro_123586.cs
+  123422/
+    repro_123422.cs
+```
+
+#### Source file format
+
+Each repro file should follow this structure:
+
+```csharp
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+// Repro for: https://github.com/dotnet/runtime/issues/123586
+// Main PR:   https://github.com/dotnet/runtime/pull/123594
+// Servicing: https://github.com/dotnet/runtime/pull/124223 (10.0.4)
+// Repro from: https://github.com/dotnet/runtime/issues/123586#issuecomment-...
+//
+// Vector2/3 EqualsAny returns incorrect results for certain input values.
+// Expected: EqualsAny returns true when at least one component matches.
+// Actual:   EqualsAny returns false even when components match.
+
+using System;
+using System.Numerics;
+
+class Repro_123586
+{
+    static int Main()
+    {
+        // ... minimal repro code from the issue ...
+
+        // Return 0 for success (issue is fixed), non-zero for failure (issue reproduced)
+        return 0;
+    }
+}
+```
+
+Key conventions:
+- **MIT license header** at the top
+- **Lineage comments**: Link to the issue, main PR, servicing PR(s), and the repro source URL
+- **Repro notes**: Brief description of expected vs. actual behavior
+- **Class name**: `Repro_NNNN` matching the folder/file number
+- **Return code convention**: Return `0` when the fix is working correctly; return non-zero (e.g., `1`) when the bug is reproduced. This means the repro should *fail* (return non-zero) on an unfixed version and *pass* (return `0`) on a fixed version.
+
+#### Parallel creation
+
+Use background agents or parallel tool calls to create all repro files simultaneously. Each repro is independent and can be created without waiting for others.
+
+After all repros are created, present the results to the user with file paths and a brief description of each.
+
+*(Further steps for building and running the repro projects against fixed/unfixed versions will be defined in a future update.)*

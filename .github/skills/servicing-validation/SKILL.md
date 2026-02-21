@@ -253,6 +253,24 @@ For fixes without repros, explain:
 
 Use `ask_user` to let the user provide repros for missing items or confirm proceeding without them.
 
+## Step 11: Create Repro Projects
+
+For each fix group with a repro, create a repro project that demonstrates the issue. Consult the team-specific reference for the project structure, naming conventions, and output location.
+
+The repro projects should:
+- Be named after the **deepest ancestor** in the PR lineage (issue number preferred, then main PR number, then servicing PR number) — choosing the most representative number when multiple options exist
+- Include **comments** in the source linking to the PR/issue lineage and the `repro_url`
+- Include salient `repro_notes` as comments explaining what the repro demonstrates
+
+Create repro projects **in parallel** (using background agents or parallel tool calls) for efficiency. When all repros are created, present the results to the user:
+
+```
+Repro projects created:
+  ✅ src/tests/Regressions/libraries/123586/repro_123586.cs — Vector2/3 EqualsAny
+  ✅ src/tests/Regressions/libraries/123422/repro_123422.cs — IEnumerable<T> binding
+  ⏭️ #122879 — Skipped (no repro found)
+```
+
 ## SQL Tracking
 
 Use the session SQL database to track collected PRs and their lineage. See [references/sql-tracking.md](references/sql-tracking.md) for the full schema and key queries.
