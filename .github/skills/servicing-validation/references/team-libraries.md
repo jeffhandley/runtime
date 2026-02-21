@@ -83,14 +83,16 @@ When a fix group has multiple issues or PRs, pick the number that best represent
 
 #### File structure
 
-For simple repros that can be expressed as a single file, create just a `.cs` file:
+For simple repros that can be expressed as a single file, create a `.cs` file alongside a `RESULTS_NNNN.md` tracking file:
 
 ```
 src/tests/Regressions/libraries/
   123586/
     repro_123586.cs
+    RESULTS_123586.md
   123422/
     repro_123422.cs
+    RESULTS_123422.md
 ```
 
 #### Source file format
@@ -138,4 +140,49 @@ Use background agents or parallel tool calls to create all repro files simultane
 
 After all repros are created, present the results to the user with file paths and a brief description of each.
 
-*(Further steps for building and running the repro projects against fixed/unfixed versions will be defined in a future update.)*
+#### RESULTS file format
+
+Create `RESULTS_NNNN.md` alongside each repro file during the repro project creation step. This file tracks which versions need testing and aggregates results as runs complete.
+
+```markdown
+# Results: repro_123586 — Vector2/3 EqualsAny
+
+Issue: https://github.com/dotnet/runtime/issues/123586
+Main PR: https://github.com/dotnet/runtime/pull/123594
+Servicing PRs: #124223 (10.0.4)
+
+## Baseline (expect failure — bug should reproduce)
+
+- [ ] .NET 10.0.3 — *(not yet run)*
+
+## Validation (expect pass — fix should resolve)
+
+- [ ] .NET 10.0.4 — *(not yet run)*
+```
+
+The checklist includes every version pair needed: the last shipped version (baseline, expect failure) and the servicing version (validation, expect pass). For fixes targeting multiple versions, include all applicable pairs:
+
+```markdown
+## Baseline (expect failure — bug should reproduce)
+
+- [ ] .NET 8.0.24 — *(not yet run)*
+- [ ] .NET 9.0.13 — *(not yet run)*
+- [ ] .NET 10.0.3 — *(not yet run)*
+
+## Validation (expect pass — fix should resolve)
+
+- [ ] .NET 8.0.25 — *(not yet run)*
+- [ ] .NET 9.0.14 — *(not yet run)*
+- [ ] .NET 10.0.4 — *(not yet run)*
+```
+
+As runs complete, update checkboxes and append the result:
+
+```markdown
+- [x] .NET 10.0.3 — ❌ FAIL (exit code 1) — bug reproduced as expected
+- [x] .NET 10.0.4 — ✅ PASS (exit code 0) — fix confirmed
+```
+
+### Test Execution
+
+See [references/test-execution.md](test-execution.md) for the detailed procedure for running repro apps against available .NET versions, SDK discovery, installation prompts, and result recording.

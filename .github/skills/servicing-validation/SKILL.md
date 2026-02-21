@@ -271,6 +271,62 @@ Repro projects created:
   ⏭️ #122879 — Skipped (no repro found)
 ```
 
+## Step 12: Run Baseline and Validation Tests
+
+Run each repro app against installed .NET versions to establish baseline failures and confirm fixes. See [references/test-execution.md](references/test-execution.md) for the detailed procedure.
+
+### SDK discovery
+
+Run `dotnet --list-sdks` and `dotnet --list-runtimes` to determine which versions are available. For each repro, the needed versions are:
+
+- **Baseline**: The last shipped release *before* the fix (e.g., 10.0.3). Expect the repro to **fail** (bug reproduces).
+- **Validation**: The servicing release *with* the fix (e.g., 10.0.4). Expect the repro to **pass** (bug resolved).
+
+### Execution plan
+
+Inform the user which tests will run and which are blocked:
+
+```
+Baseline tests (expect failure):
+  ✅ .NET 10.0.3 — installed, ready to run
+  ⬇️  .NET 9.0.13 — not installed, can be installed automatically
+
+Validation tests (expect pass):
+  ❌ .NET 10.0.4 — not yet released, manual install required
+```
+
+Run all available tests, recording exit codes in each repro's RESULTS file. Baseline FAIL and validation PASS are expected outcomes; flag unexpected results.
+
+### Installing missing versions
+
+After running available tests, check for `dotnet-install.ps1` on PATH. If available and publicly-released versions are missing, prompt the user:
+
+1. **Install next needed version** — one at a time
+2. **Install all needed versions** — batch install all missing released versions
+3. **Skip** — skip remaining tests
+
+Unreleased versions (the servicing builds being validated) cannot be auto-installed. Inform the user they need to install manually and say "rerun" when ready.
+
+## Step 13: Present Final Results
+
+After all runs complete, present a summary and update each RESULTS file:
+
+```
+Test execution summary:
+
+  repro_123586 (Vector2/3 EqualsAny):
+    Baseline:   ❌ .NET 10.0.3 — FAIL (expected) ✓
+    Validation: ✅ .NET 10.0.4 — PASS (expected) ✓
+
+  repro_123422 (IEnumerable<T> binding):
+    Baseline:   ❌ .NET 10.0.3 — FAIL (expected) ✓
+    Validation: ⏳ .NET 10.0.4 — awaiting SDK install
+
+Overall: 2/2 baselines confirmed, 1/2 validations confirmed
+```
+
+Flag any unexpected outcomes (baseline passing or validation failing) for investigation.
+
 ## SQL Tracking
 
 Use the session SQL database to track collected PRs and their lineage. See [references/sql-tracking.md](references/sql-tracking.md) for the full schema and key queries.
@@ -290,4 +346,5 @@ Use the session SQL database to track collected PRs and their lineage. See [refe
 - **[references/lineage-tracing.md](references/lineage-tracing.md)** — Detailed patterns for extracting main PR and issue references from PR bodies
 - **[references/pr-classification.md](references/pr-classification.md)** — File path classification rules, component mapping, and lead resolution from area-owners.md
 - **[references/sql-tracking.md](references/sql-tracking.md)** — SQL table schemas and key queries for session tracking
+- **[references/test-execution.md](references/test-execution.md)** — Running repro apps against installed/missing .NET versions, SDK discovery, and result recording
 - **[references/team-libraries.md](references/team-libraries.md)** — Libraries team validation workflow
