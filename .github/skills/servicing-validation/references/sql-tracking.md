@@ -34,7 +34,10 @@ CREATE TABLE fix_groups (
     area TEXT,
     lead TEXT,
     issue_unknown INTEGER DEFAULT 0,
-    direct_to_release INTEGER DEFAULT 0
+    direct_to_release INTEGER DEFAULT 0,
+    repro_found INTEGER DEFAULT 0,
+    repro_url TEXT,
+    repro_notes TEXT
 );
 ```
 

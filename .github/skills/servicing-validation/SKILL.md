@@ -204,7 +204,54 @@ Wait for explicit user confirmation before proceeding.
 
 After the user confirms, load the appropriate team reference file. If the user specified a team in their original prompt, load it directly. Otherwise, ask which team's workflow to use.
 
-The team reference (e.g., [references/team-libraries.md](references/team-libraries.md)) defines which components/areas are relevant, how to generate validation tests, and team-specific conventions.
+The team reference (e.g., [references/team-libraries.md](references/team-libraries.md)) defines which components/areas are relevant, how to discover repros, how to generate validation tests, and team-specific conventions.
+
+## Step 10: Discover Repros
+
+For each in-scope fix group, search the PR lineage for a **minimal reproduction** of the issue that can be used to validate the fix. The goal is to find code that demonstrates the bug on a version *before* the fix, confirming the fix resolves it.
+
+### Search order
+
+For each fix group, search these sources in order for a repro:
+
+1. **The linked issue** — look through the issue body and comments for code blocks
+2. **The main PR body** — authors sometimes include a repro in the PR description
+3. **The main PR comments/review** — reviewers or the author may post a repro during review
+4. **The servicing PR body** — the "Customer Impact" section sometimes includes a repro
+
+### What constitutes a repro
+
+Consult the team-specific reference for what qualifies as a repro for that team's component. The team reference defines the expected format (e.g., console app, unit test, script) and how to evaluate whether a code block is a usable repro.
+
+### Recording repros
+
+For each fix group, record:
+- **`repro_found`**: Whether a minimal repro was identified (`true`/`false`)
+- **`repro_url`**: A deep link (GitHub permalink) to the issue, PR, or comment containing the repro
+- **`repro_notes`**: Brief description of the repro format (e.g., "console app in issue body", "unit test in PR comment")
+
+If no repro is found, flag this so the user can provide one or help locate one.
+
+### Present repro status
+
+After searching, present a table to the user showing repro status for each fix:
+
+```
+| Issue | Fix Description | Lead | Repro | Source |
+|-------|----------------|------|-------|--------|
+| #123586 | Fix Vector2/3 EqualsAny | @jeffhandley | ✅ Found | [Issue #123586 (comment)](https://github.com/dotnet/runtime/issues/123586#issuecomment-...) |
+| #123422 | Fix IEnumerable<T> binding | @karelz | ✅ Found | [Issue #123422 (body)](https://github.com/dotnet/runtime/issues/123422) |
+| #122879 | SpanHelpers.Fill escape | @JulieLeeMSFT | ❌ Not found | — |
+```
+
+For fixes without repros, explain:
+
+> The following fixes do not have a minimal repro identified. You can:
+> 1. Provide a repro directly (paste code or link to a comment)
+> 2. Ask me to search more deeply (I'll read through all PR comments)
+> 3. Skip validation for this fix
+
+Use `ask_user` to let the user provide repros for missing items or confirm proceeding without them.
 
 ## SQL Tracking
 
