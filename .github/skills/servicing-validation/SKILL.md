@@ -1,11 +1,11 @@
 ---
-name: validate-libraries-servicing
-description: Produce servicing release validation tests for libraries fixes. Collects PRs merged into release branches for upcoming servicing releases, classifies them, and lets the user curate the list. Use when asked to validate servicing releases, review upcoming patches, or generate servicing validation tests.
+name: servicing-validation
+description: Collect and curate PRs shipping in upcoming .NET servicing releases, then produce validation tests. Supports team-specific validation workflows. Use when asked to validate servicing releases, review upcoming patches, or generate servicing validation tests.
 ---
 
-# Servicing Release Validation — Libraries Fixes
+# Servicing Release Validation
 
-Collect, classify, and curate the list of PRs shipping in the upcoming .NET servicing releases so that validation tests can be produced for libraries fixes.
+Collect, classify, and curate the list of PRs shipping in upcoming .NET servicing releases, then produce team-specific validation tests for the fixes.
 
 ## When to Use This Skill
 
@@ -15,6 +15,15 @@ Use this skill when:
 - Asked to "validate servicing", "list servicing PRs", or "what's shipping next patch Tuesday"
 - Given a specific version like "validate 10.0.4" or "March servicing for 9.0 and 10.0"
 - Asked about upcoming servicing for a specific month like "March servicing" or "April Patch Tuesday"
+
+## Team-Specific References
+
+This skill supports team-specific validation workflows through reference files. After collecting and curating PRs (Steps 1–7), load the appropriate team reference for validation test generation guidance.
+
+Available team references:
+- **Libraries**: [references/team-libraries.md](references/team-libraries.md) — validation workflow for libraries fixes
+
+If the user specifies a team (e.g., "libraries servicing validation"), load the corresponding reference early to inform component filtering. If no team is specified, ask the user which team's validation workflow to use before proceeding to test generation.
 
 ## Step 1: Resolve Target Versions
 
@@ -369,6 +378,19 @@ Proceed to generate validation tests?
 ```
 
 Wait for explicit user confirmation before proceeding to test generation.
+
+## Step 8: Load Team-Specific Validation Workflow
+
+After the user confirms the curated list, load the appropriate team reference file to guide validation test generation. If the user specified a team in their original prompt, load it directly. Otherwise, ask:
+
+> Which team's validation workflow should I use?
+
+Then load the corresponding reference (e.g., [references/team-libraries.md](references/team-libraries.md)) and follow its instructions for producing validation tests from the curated fix list.
+
+The team reference file defines:
+- Which components/areas are relevant for that team
+- How to generate validation tests for the team's fixes
+- Any team-specific conventions or patterns
 
 ## SQL Tracking
 
