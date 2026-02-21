@@ -138,7 +138,54 @@ Merge results from both strategies, deduplicating by PR number. Record for each 
 - Target branch and milestone (if any)
 - Author
 - Area labels
-- Original PR number (extract from "Backport of #NNNN" in the PR body)
+
+## Step 2b: Trace PR Lineage (Servicing PR → Main PR → Issue)
+
+For each collected servicing PR, trace back through the chain: **Issue(s) → Main PR → Servicing PR(s)**.
+
+### Extract the main PR reference
+
+Most servicing PRs are backports from `main`. Extract the main PR number from:
+
+1. **PR body first line**: `Backport of #NNNN to release/X.0` (automated backport bot pattern)
+2. **PR body metadata**: `**Main PR**: #NNNN` (manual backport pattern)
+3. **PR title**: `(#NNNN)` suffix in the title sometimes references the cherry-picked commit's original PR
+4. **Branch name**: `backport/pr-NNNN-to-release/X.0` in the head ref
+
+If none of these yield a main PR reference, the fix went **directly to the release branch** without a corresponding main branch PR. Flag this with `direct_to_release = true`.
+
+### Extract the issue reference
+
+Once you have the main PR number (or the servicing PR itself for direct fixes), find the issue(s) being fixed by checking these sources **in order**:
+
+#### From the servicing PR body:
+1. `Reported in https://github.com/dotnet/runtime/issues/NNNN`
+2. `**Related issue**: #NNNN`
+3. `Fixes https://github.com/dotnet/runtime/issues/NNNN`
+4. Any `https://github.com/dotnet/runtime/issues/NNNN` URL in the body
+
+#### From the main PR (fetch it via GitHub API `get` method):
+1. `fix #NNNN` / `fixes #NNNN` / `fixed #NNNN` / `close #NNNN` / `closes #NNNN` / `resolve #NNNN` / `resolves #NNNN` (GitHub auto-close keywords)
+2. `fix https://github.com/dotnet/runtime/issues/NNNN`
+3. `Fixes https://github.com/dotnet/runtime/issues/NNNN`
+4. Any `https://github.com/dotnet/runtime/issues/NNNN` URL in the body
+
+**Important**: Distinguish issue URLs (`/issues/NNNN`) from PR URLs (`/pull/NNNN`). Only collect issue numbers, not PR cross-references.
+
+### Handle unknown issues
+
+If no issue reference is found after checking both the servicing PR and the main PR, mark the fix with `issue_unknown = true`. These will be highlighted in the output so the user can:
+1. Manually provide the issue number
+2. Add the issue reference to one of the involved PRs, then ask the skill to reload that PR's data
+
+### Handle direct-to-release fixes
+
+In rare cases, a fix goes directly into the release branch without a main PR. This happens when:
+- The issue no longer reproduces on `main` because it was fixed by different work
+- The fix is specific to the release branch's version of the code
+- The fix was made directly by a maintainer without the backport workflow
+
+For these PRs, extract the issue reference from the servicing PR body itself using the same patterns above.
 
 ## Step 3: Classify Each PR
 
@@ -183,23 +230,67 @@ Based on the changed files and area labels, assign each product PR a component:
 - **Host** — changes under `src/native/corehost/` or `src/installer/`
 - **Mixed** — changes spanning multiple components
 
-## Step 4: Identify Cross-Version Fix Groups
+## Step 4: Group by Fix Lineage
 
-Many servicing fixes are backported from `main` to multiple release branches. Group PRs that share the same original PR reference (from "Backport of #NNNN" in the body). This helps the user understand which fixes span multiple versions.
+Group servicing PRs into **fix groups** where each group represents a single logical fix applied to one or more release branches.
+
+### Grouping rules
+
+1. **By main PR**: All servicing PRs that reference the same main PR (via "Backport of #NNNN") belong to the same fix group.
+2. **By issue**: If two servicing PRs reference the same issue but different main PRs (e.g., a fix was reimplemented differently per version), group them together.
+3. **Direct-to-release PRs**: These form their own fix group unless they reference an issue shared with another group.
+
+### Fix group record
+
+Each fix group should contain:
+- **Issue(s)**: The GitHub issue number(s) being fixed, with titles
+- **Main PR**: The PR merged to `main` (if any)
+- **Servicing PRs**: Map of version → PR number for each release branch
+- **Component**: Libraries, CoreCLR, Mono, etc.
+- **Area**: The area label
+- **Fix description**: From the main PR title (stripped of `[release/X.0]` prefix)
+- **Issue unknown**: Flag if no issue could be identified
+- **Direct to release**: Flag if there is no main PR
 
 ## Step 5: Present Results to the User
 
-Display two tables:
+Display the results organized by fix lineage.
 
-### Product-Source PRs (In Scope for Validation)
+### Product-Source Fixes (In Scope for Validation)
 
-Group by fix (cross-version), showing:
+Present each fix group as a row, showing the full lineage:
 
 ```
-| Fix Description | Component | Area | 8.0 PR | 9.0 PR | 10.0 PR | Original PR |
-|----------------|-----------|------|--------|--------|---------|-------------|
-| Fix Vector2/3 EqualsAny | Libraries | System.Numerics | - | - | #124223 | #123594 |
+| Issue | Fix Description | Component | Area | Main PR | 8.0 | 9.0 | 10.0 |
+|-------|----------------|-----------|------|---------|-----|-----|------|
+| #123586 | Fix Vector2/3 EqualsAny | Libraries | System.Numerics | #123594 | - | - | #124223 |
+| #121193 | Fix binding IEnumerable<T> with empty array | Libraries | Extensions.Configuration | #121249 | - | - | #121325 |
+| #124071 | Fix missing release semantics in VolatilePtr | CoreCLR | VM | #124096 | - | - | #124070 ⚑ |
+| ⚠️ ? | [mono][hotreload] Ignore empty update | Mono | Mono | #120333 | #123547 | - | - |
 ```
+
+Legend:
+- **⚑** = Direct to release (no backport from main; main PR was filed separately or fix went directly to release branch)
+- **⚠️ ?** = Issue could not be identified — the user should add the issue reference to the PR
+
+### Fixes with Unknown Issues
+
+If any fix groups have `issue_unknown = true`, highlight them prominently:
+
+```
+⚠️  The following fixes could not be linked to a GitHub issue:
+
+  • [mono][hotreload] Ignore empty update (main: #120333, servicing: #123547 for 8.0)
+    → Add a "Fixes #NNNN" reference to PR #120333 or #123547, then say "reload #120333"
+
+  • Fix EH profiler notifications (servicing: #123564 for 10.0)
+    → This is a direct-to-release fix. Add a "Fixes #NNNN" reference to PR #123564, then say "reload #123564"
+```
+
+Explain to the user:
+> Some fixes could not be linked to a GitHub issue. To resolve this, add an issue reference
+> (e.g., `Fixes #NNNN`) to one of the involved PRs, then ask me to "reload #PRNUM" and I'll
+> re-fetch the PR data and try to extract the issue reference again.
 
 ### Excluded PRs (No Product Source Changes)
 
@@ -224,7 +315,19 @@ Provide choices:
 2. **Remove PRs from scope** — then ask which PR numbers to remove
 3. **Add excluded PRs back into scope** — then show the excluded list and ask which to add
 4. **Add other PRs** — then ask for PR numbers (supports any dotnet/runtime PR: open, merged, any branch)
-5. **Re-scan with different parameters** — re-run collection with adjusted versions or date range
+5. **Reload PR data** — re-fetch one or more PRs to pick up updated issue references
+6. **Re-scan with different parameters** — re-run collection with adjusted versions or date range
+
+### Reloading PR data
+
+When the user says "reload #NNNN" or selects the reload option:
+1. Re-fetch the specified PR's details from GitHub
+2. Re-run the lineage tracing (Step 2b) for that PR
+3. If a main PR reference was found, also re-fetch the main PR
+4. Update the issue reference in the SQL database
+5. Re-display the updated table
+
+This is primarily used after the user has added issue references to PRs that had `issue_unknown = true`.
 
 ### Adding arbitrary PRs
 
@@ -256,7 +359,9 @@ Wait for explicit user confirmation before proceeding to test generation.
 
 ## SQL Tracking
 
-Use the session SQL database to track collected PRs. Create a `servicing_prs` table:
+Use the session SQL database to track collected PRs and their lineage. Create these tables:
+
+### servicing_prs table
 
 ```sql
 CREATE TABLE servicing_prs (
@@ -265,21 +370,76 @@ CREATE TABLE servicing_prs (
     milestone TEXT,
     title TEXT,
     area TEXT,
-    original_pr INTEGER,
     author TEXT,
     component TEXT,
     has_product_source INTEGER DEFAULT 1,
     classification TEXT DEFAULT 'product',
-    in_scope INTEGER DEFAULT 1
+    in_scope INTEGER DEFAULT 1,
+    main_pr INTEGER,
+    direct_to_release INTEGER DEFAULT 0
 );
 ```
 
-Track curation state with the `in_scope` column. When the user removes a PR, set `in_scope = 0`. When they add one back, set `in_scope = 1`.
+### fix_groups table
 
-Query the final curated list:
 ```sql
-SELECT * FROM servicing_prs WHERE in_scope = 1 AND has_product_source = 1 ORDER BY component, area;
+CREATE TABLE fix_groups (
+    group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    main_pr INTEGER,
+    fix_description TEXT,
+    component TEXT,
+    area TEXT,
+    issue_unknown INTEGER DEFAULT 0,
+    direct_to_release INTEGER DEFAULT 0
+);
 ```
+
+### fix_group_issues table
+
+```sql
+CREATE TABLE fix_group_issues (
+    group_id INTEGER,
+    issue_number INTEGER,
+    issue_title TEXT,
+    PRIMARY KEY (group_id, issue_number)
+);
+```
+
+### fix_group_servicing_prs table
+
+```sql
+CREATE TABLE fix_group_servicing_prs (
+    group_id INTEGER,
+    pr_number INTEGER,
+    version TEXT,
+    PRIMARY KEY (group_id, pr_number)
+);
+```
+
+### Key queries
+
+Final curated list with lineage:
+```sql
+SELECT
+    fg.group_id,
+    fg.fix_description,
+    fg.component,
+    fg.area,
+    fg.main_pr,
+    fg.issue_unknown,
+    fg.direct_to_release,
+    GROUP_CONCAT(DISTINCT fgi.issue_number) as issues,
+    GROUP_CONCAT(DISTINCT fgsp.pr_number || '(' || fgsp.version || ')') as servicing_prs
+FROM fix_groups fg
+LEFT JOIN fix_group_issues fgi ON fg.group_id = fgi.group_id
+JOIN fix_group_servicing_prs fgsp ON fg.group_id = fgsp.group_id
+JOIN servicing_prs sp ON fgsp.pr_number = sp.pr_number
+WHERE sp.in_scope = 1 AND sp.has_product_source = 1
+GROUP BY fg.group_id
+ORDER BY fg.component, fg.area;
+```
+
+Track curation state with the `in_scope` column. When the user removes a PR, set `in_scope = 0`. When they add one back, set `in_scope = 1`.
 
 ## Important Notes
 
