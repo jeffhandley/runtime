@@ -1,6 +1,6 @@
 ---
 name: servicing-validation
-description: Collect and curate PRs shipping in upcoming .NET servicing releases, then produce validation tests. Supports team-specific validation workflows. Use when asked to validate servicing releases, review upcoming patches, or generate servicing validation tests.
+description: Collect and curate PRs shipping in upcoming .NET servicing releases, then produce validation tests. Supports team-specific validation workflows. Use when asked to prepare, conduct, or run servicing validation, review upcoming patches, or generate servicing validation tests.
 ---
 
 # Servicing Release Validation
