@@ -138,6 +138,14 @@ Merge results from both strategies, deduplicating by PR number. Record for each 
 - Target branch and milestone (if any)
 - Author
 - Area labels
+- Servicing label state: check for `Servicing-approved`, `Servicing-consider`, or `Servicing-rejected` labels
+
+The servicing label state indicates where the PR is in the servicing approval process:
+- **Servicing-approved**: Approved for inclusion in a servicing release
+- **Servicing-consider**: Under consideration; not yet approved
+- **Servicing-rejected**: Rejected for servicing inclusion
+
+Record the label as `servicing_state` with values `approved`, `consider`, `rejected`, or `none`. This state is informational and does **not** filter PRs out of scope — for example, the user may want to see open PRs still in `Servicing-consider` state when reviewing upcoming milestones.
 
 ## Step 2b: Trace PR Lineage (Servicing PR → Main PR → Issue)
 
@@ -258,7 +266,7 @@ Display the results organized by fix lineage.
 
 ### Product-Source Fixes (In Scope for Validation)
 
-Present each fix group as a row, showing the full lineage:
+Present each fix group as a row, showing the full lineage. Annotate servicing PR cells with the servicing label state when it is not `approved`:
 
 ```
 | Issue | Fix Description | Component | Area | Main PR | 8.0 | 9.0 | 10.0 |
@@ -267,11 +275,16 @@ Present each fix group as a row, showing the full lineage:
 | #121193 | Fix binding IEnumerable<T> with empty array | Libraries | Extensions.Configuration | #121249 | - | - | #121325 |
 | #124071 | Fix missing release semantics in VolatilePtr | CoreCLR | VM | #124096 | - | - | #124070 ⚑ |
 | ⚠️ ? | [mono][hotreload] Ignore empty update | Mono | Mono | #120333 | #123547 | - | - |
+| #125000 | Fix timeout in HttpClient | Libraries | Networking | #124900 | - | - | #125100 🔵 |
 ```
 
 Legend:
 - **⚑** = Direct to release (no backport from main; main PR was filed separately or fix went directly to release branch)
 - **⚠️ ?** = Issue could not be identified — the user should add the issue reference to the PR
+- **🔵** = Servicing-consider (not yet approved)
+- **🔴** = Servicing-rejected
+
+PRs with `Servicing-approved` state (or `none` for already-merged PRs) are shown without annotation. When presenting open PRs still in `Servicing-consider` or `Servicing-rejected` state, include the annotation so the user can factor the approval status into their decisions.
 
 ### Fixes with Unknown Issues
 
@@ -376,7 +389,8 @@ CREATE TABLE servicing_prs (
     classification TEXT DEFAULT 'product',
     in_scope INTEGER DEFAULT 1,
     main_pr INTEGER,
-    direct_to_release INTEGER DEFAULT 0
+    direct_to_release INTEGER DEFAULT 0,
+    servicing_state TEXT DEFAULT 'none'
 );
 ```
 
