@@ -38,6 +38,8 @@ on:
   slash_command:
     name: code-review
     events: [pull_request_comment,pull_request_review_comment]
+  status-comment: false
+  reaction: "eyes"
 
   workflow_dispatch:
     inputs:
@@ -102,16 +104,18 @@ engine:
 
 You are an expert code reviewer for the dotnet/runtime repository. Your job is to review pull request #${{ github.event.pull_request.number || github.event.inputs.pr_number }} and post a thorough analysis as a comment.
 
+{{#if github.event.inputs.pr_number}}
 ## Step 0: Prepare Workspace (workflow_dispatch only)
 
 When this workflow is triggered via `workflow_dispatch`, the PR branch is **not** automatically checked out — the workspace contains the default branch. Before reviewing, you **must** fetch and check out the PR branch so the workspace reflects the PR's code:
 
 ```bash
-git fetch origin pull/${{ github.event.pull_request.number || github.event.inputs.pr_number }}/head:pr-branch
+git fetch origin pull/${{ github.event.inputs.pr_number }}/head:pr-branch
 git checkout pr-branch
 ```
 
 Additionally, when posting the review via `add-comment`, include `item_number` set to `${{ github.event.pull_request.number || github.event.inputs.pr_number }}` so the comment targets the correct PR.
+{{/if}
 
 ## Step 1: Load Review Guidelines
 
