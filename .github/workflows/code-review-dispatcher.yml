@@ -1,0 +1,125 @@
+name: "Code Review Dispatcher"
+
+# Polls open pull requests on a schedule and dispatches the code-review
+# agentic workflow for any PR that is ready for review but has not yet
+# had the code-review skill run against its current state.
+#
+# A PR is eligible when ALL of the following are true:
+#   - Open and not a draft
+#   - Has at least one changed file (non-empty diff)
+#   - The head commit was pushed at least 5 minutes ago (avoids reviewing a
+#     PR mid-force-push or immediately after an author begins typing)
+#   - No existing code-review comment carries the marker
+#     <!-- aw-code-review-sha: <current-head-sha> -->
+
+on:
+  schedule:
+    # Run every 15 minutes. A new poll will pick up any PR the previous
+    # poll missed if the concurrency slot was taken, or if the review for
+    # the previous state has already been posted and the PR has been updated.
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  # Only one dispatcher should run at a time to prevent double-dispatching.
+  group: code-review-dispatcher
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    # Do not run in repository forks.
+    if: github.repository == 'jeffhandley/runtime'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write     # required to trigger workflow_dispatch on code-review
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Find qualifying PRs and dispatch reviews
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # Minimum age (seconds) since the head commit before a review is dispatched.
+          # 300 = 5 minutes.
+          MIN_AGE_SECONDS: "300"
+          # Maximum number of reviews to dispatch per run.
+          MAX_DISPATCHES: "3"
+        run: |
+          set -euo pipefail
+
+          now=$(date -u +%s)
+          dispatched=0
+
+          echo "Fetching open non-draft pull requests..."
+          prs=$(gh api "repos/${REPO}/pulls?state=open&per_page=100" \
+            --jq '.[] | select(.draft == false) | {number: .number, head_sha: .head.sha, head_repo_id: .head.repo.id, repo_id: .base.repo.id}')
+
+          if [ -z "$prs" ]; then
+            echo "No open non-draft pull requests found."
+            exit 0
+          fi
+
+          while IFS= read -r pr_json; do
+            [ "$dispatched" -ge "$MAX_DISPATCHES" ] && break
+
+            pr_number=$(echo "$pr_json" | jq -r '.number')
+            head_sha=$(echo "$pr_json" | jq -r '.head_sha')
+
+            echo ""
+            echo "=== PR #${pr_number} (head: ${head_sha}) ==="
+
+            # ------------------------------------------------------------------
+            # 1. Check the PR has at least one changed file.
+            # ------------------------------------------------------------------
+            file_count=$(gh api "repos/${REPO}/pulls/${pr_number}/files?per_page=1" \
+              --jq 'length' 2>/dev/null || echo 0)
+            if [ "${file_count:-0}" -eq 0 ]; then
+              echo "  Skipped: no changed files."
+              continue
+            fi
+
+            # ------------------------------------------------------------------
+            # 2. Check the head commit is at least MIN_AGE_SECONDS old.
+            # ------------------------------------------------------------------
+            commit_date=$(gh api "repos/${REPO}/commits/${head_sha}" \
+              --jq '.commit.committer.date' 2>/dev/null || echo "")
+            if [ -z "$commit_date" ]; then
+              echo "  Skipped: could not determine commit date."
+              continue
+            fi
+            commit_ts=$(date -u -d "$commit_date" +%s 2>/dev/null || date -u -jf '%Y-%m-%dT%H:%M:%SZ' "$commit_date" +%s 2>/dev/null || echo 0)
+            age=$(( now - commit_ts ))
+            if [ "$age" -lt "$MIN_AGE_SECONDS" ]; then
+              echo "  Skipped: head commit is only ${age}s old (minimum ${MIN_AGE_SECONDS}s)."
+              continue
+            fi
+
+            # ------------------------------------------------------------------
+            # 3. Check whether a review for this exact commit already exists.
+            #    The code-review workflow embeds:
+            #      <!-- aw-code-review-sha: <sha> -->
+            #    in every review comment it posts.
+            # ------------------------------------------------------------------
+            marker="<!-- aw-code-review-sha: ${head_sha} -->"
+            existing=$(gh api "repos/${REPO}/issues/${pr_number}/comments?per_page=100&direction=desc" \
+              2>/dev/null | jq --arg m "$marker" '[.[] | select(.body | contains($m))] | length' || echo 0)
+            if [ "${existing:-0}" -gt 0 ]; then
+              echo "  Skipped: review already posted for commit ${head_sha}."
+              continue
+            fi
+
+            # ------------------------------------------------------------------
+            # 4. Dispatch the code-review workflow.
+            # ------------------------------------------------------------------
+            echo "  Dispatching code-review for PR #${pr_number}..."
+            gh workflow run code-review.lock.yml \
+              --repo "$REPO" \
+              --field "pr_number=${pr_number}"
+
+            dispatched=$(( dispatched + 1 ))
+            echo "  Dispatched (${dispatched}/${MAX_DISPATCHES})."
+          done <<< "$prs"
+
+          echo ""
+          echo "Done. Dispatched ${dispatched} code-review run(s)."

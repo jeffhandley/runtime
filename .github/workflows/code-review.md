@@ -22,60 +22,21 @@ safe-outputs:
   report-failure-as-issue: false
   add-comment:
     max: 1
-    target: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+    target: ${{ github.event.inputs.pr_number }}
     hide-older-comments: true
     allowed-reasons: [outdated]
     discussions: false
     issues: false
-  hide-comment:
-    max: 1
-    allowed-reasons: [resolved]
-    discussions: false
 
 timeout-minutes: 45
 
+# One concurrent review per PR; queues rather than cancels so an in-progress
+# review is never discarded by a subsequent dispatch of the same PR.
 concurrency:
-  # Concurrency is evaluated before pre-activation runs, so only event-payload
-  # signals available at queue time can be used here.
-  #
-  # Strategy:
-  #   - workflow_dispatch and PR-author slash commands share a per-PR group,
-  #     so a new authorized invocation cancels any in-progress review of the
-  #     same PR. This prevents duplicate concurrent reviews and ensures a fresh
-  #     review starts when the PR author invokes the command again.
-  #   - Non-PR-author slash commands get a per-PR-per-actor group so they
-  #     cannot cancel a review that an authorized user has already started.
-  #   - Non-slash-command comments (including all regular PR discussion) receive
-  #     a unique per-run group and therefore never cancel any in-progress review.
-  group: >-
-    ${{
-      github.event_name == 'workflow_dispatch' &&
-      format('code-review-{0}', github.event.inputs.pr_number) ||
-      startsWith(github.event.comment.body, '/code-review') &&
-      (
-        github.actor == github.event.issue.user.login ||
-        github.actor == github.event.pull_request.user.login
-      ) &&
-      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number) ||
-      startsWith(github.event.comment.body, '/code-review') &&
-      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number, github.actor) ||
-      format('code-review-run-{0}', github.run_id)
-    }}
-  cancel-in-progress: true
-
-if: github.event_name == 'workflow_dispatch' || needs.pre_activation.outputs.authorized == 'true'
+  group: code-review-${{ github.event.inputs.pr_number }}
+  cancel-in-progress: false
 
 on:
-  # Allow all users to reach pre-activation so PR authors can invoke the workflow.
-  # A custom pre-activation check below restricts actual activation to the PR
-  # author or users with triage-or-higher repository access.
-  roles: all
-  slash_command:
-    name: code-review
-    events: [pull_request_comment,pull_request_review_comment]
-  status-comment: false
-  reaction: "eyes"
-
   workflow_dispatch:
     inputs:
       pr_number:
@@ -84,8 +45,7 @@ on:
         type: number
 
   steps:
-    - name: Validate workflow_dispatch PR number
-      if: ${{ github.event_name == 'workflow_dispatch' }}
+    - name: Validate PR number
       env:
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.inputs.pr_number }}
@@ -107,71 +67,6 @@ on:
           exit 1
         fi
 
-    - name: Authorize workflow invoker
-      if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
-      id: authorize-invoker
-      env:
-        GH_TOKEN: ${{ github.token }}
-        ACTOR: ${{ github.actor }}
-        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-      run: |
-        set -euo pipefail
-
-        echo "authorized=false" >> "$GITHUB_OUTPUT"
-        echo "fingerprint=" >> "$GITHUB_OUTPUT"
-
-        if [ -z "${PR_NUMBER:-}" ]; then
-          echo "::notice::Skipping code-review: unable to determine the target pull request."
-          exit 0
-        fi
-
-        pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
-          --jq '[.state, .user.login, .head.sha, .title, (.body // "")] | @tsv' 2>/dev/null || true)"
-        if [ -z "$pr_info" ]; then
-          echo "::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}."
-          exit 0
-        fi
-
-        IFS=$'\t' read -r pr_state pr_author head_sha pr_title pr_body <<< "$pr_info"
-
-        # Compute a fingerprint of the current PR content (code ref + title + description).
-        # This is used to skip re-runs when nothing has changed since the last review.
-        fingerprint="$(printf '%s|%s|%s' "$head_sha" "$pr_title" "$pr_body" | sha256sum | cut -c1-16)"
-        echo "fingerprint=${fingerprint}" >> "$GITHUB_OUTPUT"
-
-        if [ "$ACTOR" = "$pr_author" ]; then
-          authorized=true
-        else
-          role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
-          case "$role_name" in
-            admin|maintain|write|triage)
-              authorized=true
-              ;;
-            *)
-              echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
-              authorized=false
-              ;;
-          esac
-        fi
-
-        if [ "${authorized:-false}" = "false" ]; then
-          exit 0
-        fi
-
-        # Check whether an up-to-date review already exists for the current PR
-        # content (same head SHA, title, and description). If so, skip the run to
-        # avoid wasteful duplicate reviews. The review comment embeds a fingerprint
-        # marker so this check can detect previously completed reviews.
-        comment_marker="<!-- aw-code-review-fingerprint: ${fingerprint} -->"
-        matching="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100&direction=desc" \
-          2>/dev/null | jq --arg marker "$comment_marker" '[.[] | select(.body | contains($marker))] | length' || echo 0)"
-        if [ "${matching:-0}" -gt "0" ]; then
-          echo "::notice::Skipping code-review: an up-to-date review already exists for the current PR state. Push a change to request a fresh review."
-          exit 0
-        fi
-
-        echo "authorized=true" >> "$GITHUB_OUTPUT"
-
   # ###############################################################
   # Override the COPILOT_GITHUB_TOKEN secret usage for the workflow
   # with a randomly-selected token from a pool of secrets.
@@ -183,8 +78,7 @@ on:
   # ###############################################################
 
   # Add the pre-activation step of selecting a random PAT from the supplied secrets
-    - if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       name: Checkout the select-copilot-pat action folder
       with:
         persist-credentials: false
@@ -192,8 +86,7 @@ on:
         sparse-checkout-cone-mode: true
         fetch-depth: 1
 
-    - if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
-      id: select-copilot-pat
+    - id: select-copilot-pat
       name: Select Copilot token from pool
       uses: ./.github/actions/select-copilot-pat
       env:
@@ -212,8 +105,6 @@ on:
 jobs:
   pre-activation:
     outputs:
-      authorized: ${{ steps.authorize-invoker.outputs.authorized }}
-      fingerprint: ${{ steps.authorize-invoker.outputs.fingerprint }}
       copilot_pat_number: ${{ steps.select-copilot-pat.outputs.copilot_pat_number }}
 
 # Override the COPILOT_GITHUB_TOKEN expression used in the activation job
@@ -229,20 +120,16 @@ engine:
 
 # Code Review
 
-You are an expert code reviewer for the dotnet/runtime repository. Your job is to review pull request #${{ github.event.pull_request.number || github.event.inputs.pr_number }} and post a thorough analysis as a comment.
+You are an expert code reviewer for the dotnet/runtime repository. Your job is to review pull request #${{ github.event.inputs.pr_number }} and post a thorough analysis as a comment.
 
-{{#if github.event.inputs.pr_number}}
-## Step 0: Prepare Workspace (workflow_dispatch only)
+## Step 0: Prepare Workspace
 
-When this workflow is triggered via `workflow_dispatch`, the PR branch is **not** automatically checked out — the workspace contains the default branch. Before reviewing, you **must** fetch and check out the PR branch so the workspace reflects the PR's code:
+The PR branch is **not** automatically checked out — the workspace contains the default branch. Before reviewing, you **must** fetch and check out the PR branch so the workspace reflects the PR's code:
 
 ```bash
 git fetch origin pull/${{ github.event.inputs.pr_number }}/head:pr-branch
 git checkout pr-branch
 ```
-
-Additionally, when posting the review via `add-comment`, include `item_number` set to `${{ github.event.pull_request.number || github.event.inputs.pr_number }}` so the comment targets the correct PR.
-{{/if}
 
 ## Step 1: Load Review Guidelines
 
@@ -250,27 +137,16 @@ Read the file `.github/skills/code-review/SKILL.md` from the repository. This co
 
 ## Step 2: Review and Post
 
-Follow the instructions in SKILL.md to perform a thorough code review of PR #${{ github.event.pull_request.number || github.event.inputs.pr_number }}.
+Follow the instructions in SKILL.md to perform a thorough code review of PR #${{ github.event.inputs.pr_number }}.
 
 **Important:** Before performing any analysis, check whether the PR has any actual code changes (lines added, removed, or modified). If the diff is empty (e.g., a merge commit with no effective changes), do **not** post a review comment. Simply stop without producing any output.
 
-When completed, post the review output as a regular comment on the PR using the `add-comment` safe output.
+When completed, post the review output as a regular comment on PR #${{ github.event.inputs.pr_number }} using the `add-comment` safe output. Include `item_number` set to `${{ github.event.inputs.pr_number }}` in the safe output.
 
-**Important:** At the very end of the comment body, append the following HTML comment on its own line — exactly as shown — so that future invocations can detect that an up-to-date review already exists for this PR state:
+At the very end of the comment body, append the following HTML comment on its own line so the dispatcher can detect that this PR has already been reviewed at this commit:
 
 ```
-<!-- aw-code-review-fingerprint: ${{ needs.pre_activation.outputs.fingerprint }} -->
+<!-- aw-code-review-sha: CURRENT_HEAD_SHA -->
 ```
 
-Do not alter or reformat this marker.
-
-{{#if github.event.comment.id}}
-## Step 3: Hide the slash_command Comment
-
-If the triggering slash_command was from a `pull_request_comment` event, and the comment body **contained nothing except the slash command itself** (that is, after trimming whitespace it is exactly `/code-review`), then also call the `hide-comment` safe output to hide the invoking comment. First, use the triggering comment's REST id `${{ github.event.comment.id }}` to retrieve its GraphQL node ID via the GitHub tools, then use:
-
-- `comment_id`: the triggering comment's GraphQL node ID
-- `reason`: `"resolved"`
-
-Do not hide anything for `pull_request_review_comment` or `workflow_dispatch` runs.
-{{/if}}
+Replace `CURRENT_HEAD_SHA` with the output of running `git rev-parse HEAD` after checking out the PR branch.

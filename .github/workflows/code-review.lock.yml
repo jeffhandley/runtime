@@ -49,21 +49,13 @@
 
 name: "Code Review"
 "on":
-  issue_comment:
-    types:
-    - created
-    - edited
-  pull_request_review_comment:
-    types:
-    - created
-    - edited
   # roles: all # Roles processed as role check in pre-activation job
   # steps: # Steps injected into pre-activation job
   # - env:
       # GH_TOKEN: ${{ github.token }}
       # PR_NUMBER: ${{ github.event.inputs.pr_number }}
     # if: ${{ github.event_name == 'workflow_dispatch' }}
-    # name: Validate workflow_dispatch PR number
+    # name: Validate PR number
     # run: |
       # invalid_pr_message="The specified pr_number is not an open pull request number."
       # 
@@ -81,15 +73,7 @@ name: "Code Review"
         # echo "::error::$invalid_pr_message"
         # exit 1
       # fi
-  # - env:
-      # ACTOR: ${{ github.actor }}
-      # GH_TOKEN: ${{ github.token }}
-      # PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-    # id: authorize-invoker
-    # if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
-    # name: Authorize workflow invoker
-    # run: "set -euo pipefail\n\necho \"authorized=false\" >> \"$GITHUB_OUTPUT\"\n\nif [ -z \"${PR_NUMBER:-}\" ]; then\n  echo \"::notice::Skipping code-review: unable to determine the target pull request.\"\n  exit 0\nfi\n\npr_info=\"$(gh api \"repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}\" --jq '[.state, .user.login] | @tsv' 2>/dev/null || true)\"\nif [ -z \"$pr_info\" ]; then\n  echo \"::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}.\"\n  exit 0\nfi\n\nIFS=$'\\t' read -r pr_state pr_author <<< \"$pr_info\"\n\nif [ \"$ACTOR\" = \"$pr_author\" ]; then\n  echo \"authorized=true\" >> \"$GITHUB_OUTPUT\"\n  exit 0\nfi\n\nrole_name=\"$(gh api \"repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission\" --jq .role_name 2>/dev/null || true)\"\ncase \"$role_name\" in\n  admin|maintain|write|triage)\n    echo \"authorized=true\" >> \"$GITHUB_OUTPUT\"\n    ;;\n  *)\n    echo \"::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow.\"\n    ;;\nesac\n"
-  # - if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
+  # - if: ${{ github.event_name == 'workflow_dispatch' }}
     # name: Checkout the select-copilot-pat action folder
     # uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     # with:
@@ -109,7 +93,6 @@ name: "Code Review"
       # SECRET_8: ${{ secrets.COPILOT_PAT_8 }}
       # SECRET_9: ${{ secrets.COPILOT_PAT_9 }}
     # id: select-copilot-pat
-    # if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
     # name: Select Copilot token from pool
     # uses: ./.github/actions/select-copilot-pat
   workflow_dispatch:
@@ -127,21 +110,8 @@ name: "Code Review"
 permissions: {}
 
 concurrency:
-  cancel-in-progress: true
-  group: |-
-    ${{
-      github.event_name == 'workflow_dispatch' &&
-      format('code-review-{0}', github.event.inputs.pr_number) ||
-      startsWith(github.event.comment.body, '/code-review') &&
-      (
-        github.actor == github.event.issue.user.login ||
-        github.actor == github.event.pull_request.user.login
-      ) &&
-      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number) ||
-      startsWith(github.event.comment.body, '/code-review') &&
-      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number, github.actor) ||
-      format('code-review-run-{0}', github.run_id)
-    }}
+  cancel-in-progress: false
+  group: code-review-${{ github.event.inputs.pr_number }}
 
 run-name: "Code Review"
 
@@ -149,7 +119,7 @@ jobs:
   activation:
     needs: pre_activation
     if: >
-      needs.pre_activation.outputs.activated == 'true' && (github.event_name == 'workflow_dispatch' || needs.pre_activation.outputs.authorized == 'true')
+      needs.pre_activation.outputs.activated == 'true' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-slim
     permissions:
       actions: read
@@ -205,7 +175,7 @@ jobs:
             await main(core, context);
       - name: Add eyes reaction for immediate feedback
         id: react
-        if: github.event_name == 'issues' || github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' || github.event_name == 'discussion' || github.event_name == 'discussion_comment' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id
+        if: github.event_name == 'issues' || github.event_name == 'discussion' || github.event_name == 'discussion_comment' || github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           GH_AW_REACTION: "eyes"
@@ -339,7 +309,6 @@ jobs:
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_INPUTS_PR_NUMBER: ${{ github.event.inputs.pr_number }}
           GH_AW_EXPR_2697560F: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
-          GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT: ${{ needs.pre_activation.outputs.fingerprint }}
         with:
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
@@ -362,7 +331,6 @@ jobs:
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_IS_PR_COMMENT: ${{ github.event.issue.pull_request && 'true' || '' }}
           GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: ${{ needs.pre_activation.outputs.activated }}
-          GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT: ${{ needs.pre_activation.outputs.fingerprint }}
           GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_MATCHED_COMMAND: ${{ needs.pre_activation.outputs.matched_command }}
         with:
           script: |
@@ -387,7 +355,6 @@ jobs:
                 GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
                 GH_AW_IS_PR_COMMENT: process.env.GH_AW_IS_PR_COMMENT,
                 GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED,
-                GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT,
                 GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_MATCHED_COMMAND: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_MATCHED_COMMAND
               }
             });
@@ -1241,10 +1208,7 @@ jobs:
     runs-on: ubuntu-slim
     outputs:
       activated: ${{ steps.check_command_position.outputs.command_position_ok == 'true' }}
-      authorize-invoker_result: ${{ steps.authorize-invoker.outcome }}
-      authorized: ${{ steps.authorize-invoker.outputs.authorized }}
       copilot_pat_number: ${{ steps.select-copilot-pat.outputs.copilot_pat_number }}
-      fingerprint: ${{ steps.authorize-invoker.outputs.fingerprint }}
       matched_command: ${{ steps.check_command_position.outputs.matched_command }}
       select-copilot-pat_result: ${{ steps.select-copilot-pat.outcome }}
       setup-trace-id: ${{ steps.setup.outputs.trace-id }}
@@ -1266,7 +1230,7 @@ jobs:
             setupGlobals(core, github, context, exec, io, getOctokit);
             const { main } = require('${{ runner.temp }}/gh-aw/actions/check_command_position.cjs');
             await main();
-      - name: Validate workflow_dispatch PR number
+      - name: Validate PR number
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           invalid_pr_message="The specified pr_number is not an open pull request number."
@@ -1288,72 +1252,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.inputs.pr_number }}
-      - name: Authorize workflow invoker
-        id: authorize-invoker
-        if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
-        run: |
-          set -euo pipefail
-
-          echo "authorized=false" >> "$GITHUB_OUTPUT"
-          echo "fingerprint=" >> "$GITHUB_OUTPUT"
-
-          if [ -z "${PR_NUMBER:-}" ]; then
-            echo "::notice::Skipping code-review: unable to determine the target pull request."
-            exit 0
-          fi
-
-          pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
-            --jq '[.state, .user.login, .head.sha, .title, (.body // "")] | @tsv' 2>/dev/null || true)"
-          if [ -z "$pr_info" ]; then
-            echo "::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}."
-            exit 0
-          fi
-
-          IFS=$'\t' read -r pr_state pr_author head_sha pr_title pr_body <<< "$pr_info"
-
-          # Compute a fingerprint of the current PR content (code ref + title + description).
-          # This is used to skip re-runs when nothing has changed since the last review.
-          fingerprint="$(printf '%s|%s|%s' "$head_sha" "$pr_title" "$pr_body" | sha256sum | cut -c1-16)"
-          echo "fingerprint=${fingerprint}" >> "$GITHUB_OUTPUT"
-
-          if [ "$ACTOR" = "$pr_author" ]; then
-            authorized=true
-          else
-            role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
-            case "$role_name" in
-              admin|maintain|write|triage)
-                authorized=true
-                ;;
-              *)
-                echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
-                authorized=false
-                ;;
-            esac
-          fi
-
-          if [ "${authorized:-false}" = "false" ]; then
-            exit 0
-          fi
-
-          # Check whether an up-to-date review already exists for the current PR
-          # content (same head SHA, title, and description). If so, skip the run to
-          # avoid wasteful duplicate reviews. The review comment embeds a fingerprint
-          # marker so this check can detect previously completed reviews.
-          comment_marker="<!-- aw-code-review-fingerprint: ${fingerprint} -->"
-          matching="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100&direction=desc" \
-            2>/dev/null | jq --arg marker "$comment_marker" '[.[] | select(.body | contains($marker))] | length' || echo 0)"
-          if [ "${matching:-0}" -gt "0" ]; then
-            echo "::notice::Skipping code-review: an up-to-date review already exists for the current PR state. Push a change to request a fresh review."
-            exit 0
-          fi
-
-          echo "authorized=true" >> "$GITHUB_OUTPUT"
-        env:
-          ACTOR: ${{ github.actor }}
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
       - name: Checkout the select-copilot-pat action folder
-        if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
@@ -1362,7 +1261,6 @@ jobs:
           sparse-checkout-cone-mode: true
       - name: Select Copilot token from pool
         id: select-copilot-pat
-        if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
         uses: ./.github/actions/select-copilot-pat
         env:
           SECRET_0: ${{ secrets.COPILOT_PAT_0 }}
