@@ -143,10 +143,8 @@ Follow the instructions in SKILL.md to perform a thorough code review of PR #${{
 
 When completed, post the review output as a regular comment on PR #${{ github.event.inputs.pr_number }} using the `add-comment` safe output. Include `item_number` set to `${{ github.event.inputs.pr_number }}` in the safe output.
 
-At the very end of the comment body, append the following HTML comment on its own line so the dispatcher can detect that this PR has already been reviewed at this commit:
+At the very end of the comment body, append the following HTML comment on its own line. First run `git rev-parse HEAD` to get the current commit SHA after checking out the PR branch, then substitute it for `CURRENT_HEAD_SHA`:
 
 ```
 <!-- aw-code-review-sha: CURRENT_HEAD_SHA -->
 ```
-
-Replace `CURRENT_HEAD_SHA` with the output of running `git rev-parse HEAD` after checking out the PR branch.

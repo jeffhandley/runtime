@@ -88,7 +88,9 @@ jobs:
               echo "  Skipped: could not determine commit date."
               continue
             fi
-            commit_ts=$(date -u -d "$commit_date" +%s 2>/dev/null || date -u -jf '%Y-%m-%dT%H:%M:%SZ' "$commit_date" +%s 2>/dev/null || echo 0)
+            commit_ts=$(date -u -d "$commit_date" +%s 2>/dev/null || \
+              date -u -jf '%Y-%m-%dT%H:%M:%SZ' "${commit_date%+*}" +%s 2>/dev/null || \
+              echo 0)
             age=$(( now - commit_ts ))
             if [ "$age" -lt "$MIN_AGE_SECONDS" ]; then
               echo "  Skipped: head commit is only ${age}s old (minimum ${MIN_AGE_SECONDS}s)."
