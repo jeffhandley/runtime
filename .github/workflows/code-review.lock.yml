@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"25ade347e7d7d220a23a513905e1cf31fc7d16ee7556dbec2fac0ef62725908b","compiler_version":"v0.68.1","strict":true,"agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"534c3c7034462289e9473488bf736e0eca12bc0012187431e0f41ceff4e6adb5","compiler_version":"v0.68.1","strict":true,"agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["COPILOT_GITHUB_TOKEN","COPILOT_PAT_0","COPILOT_PAT_1","COPILOT_PAT_2","COPILOT_PAT_3","COPILOT_PAT_4","COPILOT_PAT_5","COPILOT_PAT_6","COPILOT_PAT_7","COPILOT_PAT_8","COPILOT_PAT_9","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9"},{"repo":"actions/upload-artifact","sha":"bbbca2ddaa5d8feaa63e36b76fdaad77386f024f","version":"v7"},{"repo":"github/gh-aw-actions/setup","sha":"2fe53acc038ba01c3bbdc767d4b25df31ca5bdfc","version":"v0.68.1"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -57,6 +57,7 @@ name: "Code Review"
     types:
     - created
     - edited
+  # roles: all # Roles processed as role check in pre-activation job
   # steps: # Steps injected into pre-activation job
   # - env:
       # GH_TOKEN: ${{ github.token }}
@@ -80,7 +81,16 @@ name: "Code Review"
         # echo "::error::$invalid_pr_message"
         # exit 1
       # fi
-  # - name: Checkout the select-copilot-pat action folder
+  # - env:
+      # ACTOR: ${{ github.actor }}
+      # GH_TOKEN: ${{ github.token }}
+      # PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+    # id: authorize-invoker
+    # if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
+    # name: Authorize workflow invoker
+    # run: "set -euo pipefail\n\necho \"authorized=false\" >> \"$GITHUB_OUTPUT\"\n\nif [ -z \"${PR_NUMBER:-}\" ]; then\n  echo \"::notice::Skipping code-review: unable to determine the target pull request.\"\n  exit 0\nfi\n\npr_info=\"$(gh api \"repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}\" --jq '[.state, .user.login] | @tsv' 2>/dev/null || true)\"\nif [ -z \"$pr_info\" ]; then\n  echo \"::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}.\"\n  exit 0\nfi\n\nIFS=$'\\t' read -r pr_state pr_author <<< \"$pr_info\"\n\nif [ \"$ACTOR\" = \"$pr_author\" ]; then\n  echo \"authorized=true\" >> \"$GITHUB_OUTPUT\"\n  exit 0\nfi\n\nrole_name=\"$(gh api \"repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission\" --jq .role_name 2>/dev/null || true)\"\ncase \"$role_name\" in\n  admin|maintain|write|triage)\n    echo \"authorized=true\" >> \"$GITHUB_OUTPUT\"\n    ;;\n  *)\n    echo \"::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow.\"\n    ;;\nesac\n"
+  # - if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
+    # name: Checkout the select-copilot-pat action folder
     # uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
     # with:
       # fetch-depth: 1
@@ -99,6 +109,7 @@ name: "Code Review"
       # SECRET_8: ${{ secrets.COPILOT_PAT_8 }}
       # SECRET_9: ${{ secrets.COPILOT_PAT_9 }}
     # id: select-copilot-pat
+    # if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
     # name: Select Copilot token from pool
     # uses: ./.github/actions/select-copilot-pat
   workflow_dispatch:
@@ -117,14 +128,24 @@ permissions: {}
 
 concurrency:
   cancel-in-progress: true
-  group: code-review-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  group: |-
+    ${{
+      (
+        github.event_name == 'workflow_dispatch' ||
+        github.actor == github.event.issue.user.login ||
+        github.actor == github.event.pull_request.user.login
+      ) &&
+      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number) ||
+      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number, github.actor)
+    }}
 
 run-name: "Code Review"
 
 jobs:
   activation:
     needs: pre_activation
-    if: "needs.pre_activation.outputs.activated == 'true' && ((github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') && (github.event_name == 'issue_comment' && (startsWith(github.event.comment.body, '/code-review ') || startsWith(github.event.comment.body, '/code-review\n') || github.event.comment.body == '/code-review') && github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' && (startsWith(github.event.comment.body, '/code-review ') || startsWith(github.event.comment.body, '/code-review\n') || github.event.comment.body == '/code-review')) || (!(github.event_name == 'issue_comment')) && (!(github.event_name == 'pull_request_review_comment')))"
+    if: >
+      needs.pre_activation.outputs.activated == 'true' && (github.event_name == 'workflow_dispatch' || needs.pre_activation.outputs.authorized == 'true')
     runs-on: ubuntu-slim
     permissions:
       actions: read
@@ -255,14 +276,14 @@ jobs:
         run: |
           bash "${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh"
           {
-          cat << 'GH_AW_PROMPT_1298f939d2158d5b_EOF'
+          cat << 'GH_AW_PROMPT_163fbe038b59145e_EOF'
           <system>
-          GH_AW_PROMPT_1298f939d2158d5b_EOF
+          GH_AW_PROMPT_163fbe038b59145e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_1298f939d2158d5b_EOF'
+          cat << 'GH_AW_PROMPT_163fbe038b59145e_EOF'
           <safe-output-tools>
           Tools: add_comment, hide_comment, missing_tool, missing_data, noop
           </safe-output-tools>
@@ -297,15 +318,15 @@ jobs:
             - **Note**: If a branch you need is not in the list above and is not listed as an additional fetched ref, it has NOT been checked out. For private repositories you cannot fetch it without proper authentication. If the branch is required and not available, exit with an error and ask the user to add it to the `fetch:` option of the `checkout:` configuration (e.g., `fetch: ["refs/pulls/open/*"]` for all open PR refs, or `fetch: ["main", "feature/my-branch"]` for specific branches).
           </github-context>
           
-          GH_AW_PROMPT_1298f939d2158d5b_EOF
+          GH_AW_PROMPT_163fbe038b59145e_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
           if [ "$GITHUB_EVENT_NAME" = "issue_comment" ] && [ -n "$GH_AW_IS_PR_COMMENT" ] || [ "$GITHUB_EVENT_NAME" = "pull_request_review_comment" ] || [ "$GITHUB_EVENT_NAME" = "pull_request_review" ]; then
             cat "${RUNNER_TEMP}/gh-aw/prompts/pr_context_prompt.md"
           fi
-          cat << 'GH_AW_PROMPT_1298f939d2158d5b_EOF'
+          cat << 'GH_AW_PROMPT_163fbe038b59145e_EOF'
           </system>
           {{#runtime-import .github/workflows/code-review.md}}
-          GH_AW_PROMPT_1298f939d2158d5b_EOF
+          GH_AW_PROMPT_163fbe038b59145e_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
@@ -480,9 +501,9 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_81fc8825e921b93e_EOF'
+          cat > "${RUNNER_TEMP}/gh-aw/safeoutputs/config.json" << 'GH_AW_SAFE_OUTPUTS_CONFIG_4bbf83861fdfb30f_EOF'
           {"add_comment":{"hide_older_comments":true,"max":1,"target":"${{ github.event.pull_request.number || github.event.inputs.pr_number }}"},"create_report_incomplete_issue":{},"hide_comment":{"allowed_reasons":["resolved"],"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"},"report_incomplete":{}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_81fc8825e921b93e_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_4bbf83861fdfb30f_EOF
       - name: Write Safe Outputs Tools
         env:
           GH_AW_TOOLS_META_JSON: |
@@ -685,7 +706,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host -v /var/run/docker.sock:/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.2.17'
           
           mkdir -p /home/runner/.copilot
-          cat << GH_AW_MCP_CONFIG_af6a500fa272b805_EOF | bash "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh"
+          cat << GH_AW_MCP_CONFIG_4ad1671c6e596e85_EOF | bash "${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh"
           {
             "mcpServers": {
               "github": {
@@ -732,7 +753,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_af6a500fa272b805_EOF
+          GH_AW_MCP_CONFIG_4ad1671c6e596e85_EOF
       - name: Download activation artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -1210,10 +1231,11 @@ jobs:
             await main();
 
   pre_activation:
-    if: "(github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') && (github.event_name == 'issue_comment' && (startsWith(github.event.comment.body, '/code-review ') || startsWith(github.event.comment.body, '/code-review\n') || github.event.comment.body == '/code-review') && github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' && (startsWith(github.event.comment.body, '/code-review ') || startsWith(github.event.comment.body, '/code-review\n') || github.event.comment.body == '/code-review')) || (!(github.event_name == 'issue_comment')) && (!(github.event_name == 'pull_request_review_comment'))"
     runs-on: ubuntu-slim
     outputs:
-      activated: ${{ steps.check_membership.outputs.is_team_member == 'true' && steps.check_command_position.outputs.command_position_ok == 'true' }}
+      activated: ${{ steps.check_command_position.outputs.command_position_ok == 'true' }}
+      authorize-invoker_result: ${{ steps.authorize-invoker.outcome }}
+      authorized: ${{ steps.authorize-invoker.outputs.authorized }}
       copilot_pat_number: ${{ steps.select-copilot-pat.outputs.copilot_pat_number }}
       matched_command: ${{ steps.check_command_position.outputs.matched_command }}
       select-copilot-pat_result: ${{ steps.select-copilot-pat.outcome }}
@@ -1225,18 +1247,6 @@ jobs:
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
-      - name: Check team membership for command workflow
-        id: check_membership
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        env:
-          GH_AW_REQUIRED_ROLES: "admin,maintainer,write"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
-            setupGlobals(core, github, context, exec, io, getOctokit);
-            const { main } = require('${{ runner.temp }}/gh-aw/actions/check_membership.cjs');
-            await main();
       - name: Check command position
         id: check_command_position
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
@@ -1270,7 +1280,47 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.inputs.pr_number }}
+      - name: Authorize workflow invoker
+        id: authorize-invoker
+        if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
+        run: |
+          set -euo pipefail
+
+          echo "authorized=false" >> "$GITHUB_OUTPUT"
+
+          if [ -z "${PR_NUMBER:-}" ]; then
+            echo "::notice::Skipping code-review: unable to determine the target pull request."
+            exit 0
+          fi
+
+          pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '[.state, .user.login] | @tsv' 2>/dev/null || true)"
+          if [ -z "$pr_info" ]; then
+            echo "::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}."
+            exit 0
+          fi
+
+          IFS=$'\t' read -r pr_state pr_author <<< "$pr_info"
+
+          if [ "$ACTOR" = "$pr_author" ]; then
+            echo "authorized=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
+          case "$role_name" in
+            admin|maintain|write|triage)
+              echo "authorized=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
+              ;;
+          esac
+        env:
+          ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
       - name: Checkout the select-copilot-pat action folder
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
@@ -1279,6 +1329,7 @@ jobs:
           sparse-checkout-cone-mode: true
       - name: Select Copilot token from pool
         id: select-copilot-pat
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
         uses: ./.github/actions/select-copilot-pat
         env:
           SECRET_0: ${{ secrets.COPILOT_PAT_0 }}

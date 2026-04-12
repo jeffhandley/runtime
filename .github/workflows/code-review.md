@@ -35,10 +35,28 @@ safe-outputs:
 timeout-minutes: 45
 
 concurrency:
-  group: code-review-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  # Concurrency is evaluated before pre-activation runs, so it can't use the
+  # exact authorization result. Only the reliable pre-activation signals are
+  # used here: manual dispatch and whether the actor is the PR author.
+  group: >-
+    ${{
+      (
+        github.event_name == 'workflow_dispatch' ||
+        github.actor == github.event.issue.user.login ||
+        github.actor == github.event.pull_request.user.login
+      ) &&
+      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number) ||
+      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number, github.actor)
+    }}
   cancel-in-progress: true
 
+if: github.event_name == 'workflow_dispatch' || needs.pre_activation.outputs.authorized == 'true'
+
 on:
+  # Allow all users to reach pre-activation so PR authors can invoke the workflow.
+  # A custom pre-activation check below restricts actual activation to the PR
+  # author or users with triage-or-higher repository access.
+  roles: all
   slash_command:
     name: code-review
     events: [pull_request_comment,pull_request_review_comment]
@@ -76,6 +94,46 @@ on:
           exit 1
         fi
 
+    - name: Authorize workflow invoker
+      if: ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' }}
+      id: authorize-invoker
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ACTOR: ${{ github.actor }}
+        PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+      run: |
+        set -euo pipefail
+
+        echo "authorized=false" >> "$GITHUB_OUTPUT"
+
+        if [ -z "${PR_NUMBER:-}" ]; then
+          echo "::notice::Skipping code-review: unable to determine the target pull request."
+          exit 0
+        fi
+
+        pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '[.state, .user.login] | @tsv' 2>/dev/null || true)"
+        if [ -z "$pr_info" ]; then
+          echo "::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}."
+          exit 0
+        fi
+
+        IFS=$'\t' read -r pr_state pr_author <<< "$pr_info"
+
+        if [ "$ACTOR" = "$pr_author" ]; then
+          echo "authorized=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
+        case "$role_name" in
+          admin|maintain|write|triage)
+            echo "authorized=true" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
+            ;;
+        esac
+
   # ###############################################################
   # Override the COPILOT_GITHUB_TOKEN secret usage for the workflow
   # with a randomly-selected token from a pool of secrets.
@@ -87,7 +145,8 @@ on:
   # ###############################################################
 
   # Add the pre-activation step of selecting a random PAT from the supplied secrets
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       name: Checkout the select-copilot-pat action folder
       with:
         persist-credentials: false
@@ -95,7 +154,8 @@ on:
         sparse-checkout-cone-mode: true
         fetch-depth: 1
 
-    - id: select-copilot-pat
+    - if: ${{ github.event_name == 'workflow_dispatch' || steps.authorize-invoker.outputs.authorized == 'true' }}
+      id: select-copilot-pat
       name: Select Copilot token from pool
       uses: ./.github/actions/select-copilot-pat
       env:
@@ -114,6 +174,7 @@ on:
 jobs:
   pre-activation:
     outputs:
+      authorized: ${{ steps.authorize-invoker.outputs.authorized }}
       copilot_pat_number: ${{ steps.select-copilot-pat.outputs.copilot_pat_number }}
 
 # Override the COPILOT_GITHUB_TOKEN expression used in the activation job
