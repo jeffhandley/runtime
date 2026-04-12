@@ -27,6 +27,10 @@ safe-outputs:
     allowed-reasons: [outdated]
     discussions: false
     issues: false
+  hide-comment:
+    max: 1
+    allowed-reasons: [resolved]
+    discussions: false
 
 timeout-minutes: 45
 
@@ -48,6 +52,30 @@ on:
         required: true
         type: number
 
+  steps:
+    - name: Validate workflow_dispatch PR number
+      if: ${{ github.event_name == 'workflow_dispatch' }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.inputs.pr_number }}
+      run: |
+        invalid_pr_message="The specified pr_number is not an open pull request number."
+
+        if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+          echo "::error::$invalid_pr_message"
+          exit 1
+        fi
+
+        state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .state 2>/dev/null)" || {
+          echo "::error::$invalid_pr_message"
+          exit 1
+        }
+
+        if [ "$state" != "open" ]; then
+          echo "::error::$invalid_pr_message"
+          exit 1
+        fi
+
   # ###############################################################
   # Override the COPILOT_GITHUB_TOKEN secret usage for the workflow
   # with a randomly-selected token from a pool of secrets.
@@ -59,7 +87,6 @@ on:
   # ###############################################################
 
   # Add the pre-activation step of selecting a random PAT from the supplied secrets
-  steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       name: Checkout the select-copilot-pat action folder
       with:
@@ -128,3 +155,14 @@ Follow the instructions in SKILL.md to perform a thorough code review of PR #${{
 **Important:** Before performing any analysis, check whether the PR has any actual code changes (lines added, removed, or modified). If the diff is empty (e.g., a merge commit with no effective changes), do **not** post a review comment. Simply stop without producing any output.
 
 When completed, post the review output as a regular comment on the PR using the `add-comment` safe output.
+
+{{#if github.event.comment.id}}
+## Step 3: Hide the slash_command Comment
+
+If the triggering slash_command was from a `pull_request_comment` event, and the comment body **contained nothing except the slash command itself** (that is, after trimming whitespace it is exactly `/code-review`), then also call the `hide-comment` safe output to hide the invoking comment. First, use the triggering comment's REST id `${{ github.event.comment.id }}` to retrieve its GraphQL node ID via the GitHub tools, then use:
+
+- `comment_id`: the triggering comment's GraphQL node ID
+- `reason`: `"resolved"`
+
+Do not hide anything for `pull_request_review_comment` or `workflow_dispatch` runs.
+{{/if}}
