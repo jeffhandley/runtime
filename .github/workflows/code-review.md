@@ -35,18 +35,31 @@ safe-outputs:
 timeout-minutes: 45
 
 concurrency:
-  # Concurrency is evaluated before pre-activation runs, so it can't use the
-  # exact authorization result. Only the reliable pre-activation signals are
-  # used here: manual dispatch and whether the actor is the PR author.
+  # Concurrency is evaluated before pre-activation runs, so only event-payload
+  # signals available at queue time can be used here.
+  #
+  # Strategy:
+  #   - workflow_dispatch and PR-author slash commands share a per-PR group,
+  #     so a new authorized invocation cancels any in-progress review of the
+  #     same PR. This prevents duplicate concurrent reviews and ensures a fresh
+  #     review starts when the PR author invokes the command again.
+  #   - Non-PR-author slash commands get a per-PR-per-actor group so they
+  #     cannot cancel a review that an authorized user has already started.
+  #   - Non-slash-command comments (including all regular PR discussion) receive
+  #     a unique per-run group and therefore never cancel any in-progress review.
   group: >-
     ${{
+      github.event_name == 'workflow_dispatch' &&
+      format('code-review-{0}', github.event.inputs.pr_number) ||
+      startsWith(github.event.comment.body, '/code-review') &&
       (
-        github.event_name == 'workflow_dispatch' ||
         github.actor == github.event.issue.user.login ||
         github.actor == github.event.pull_request.user.login
       ) &&
-      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number) ||
-      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number, github.actor)
+      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number) ||
+      startsWith(github.event.comment.body, '/code-review') &&
+      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number, github.actor) ||
+      format('code-review-run-{0}', github.run_id)
     }}
   cancel-in-progress: true
 
@@ -105,34 +118,59 @@ on:
         set -euo pipefail
 
         echo "authorized=false" >> "$GITHUB_OUTPUT"
+        echo "fingerprint=" >> "$GITHUB_OUTPUT"
 
         if [ -z "${PR_NUMBER:-}" ]; then
           echo "::notice::Skipping code-review: unable to determine the target pull request."
           exit 0
         fi
 
-        pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '[.state, .user.login] | @tsv' 2>/dev/null || true)"
+        pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
+          --jq '[.state, .user.login, .head.sha, .title, (.body // "")] | @tsv' 2>/dev/null || true)"
         if [ -z "$pr_info" ]; then
           echo "::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}."
           exit 0
         fi
 
-        IFS=$'\t' read -r pr_state pr_author <<< "$pr_info"
+        IFS=$'\t' read -r pr_state pr_author head_sha pr_title pr_body <<< "$pr_info"
+
+        # Compute a fingerprint of the current PR content (code ref + title + description).
+        # This is used to skip re-runs when nothing has changed since the last review.
+        fingerprint="$(printf '%s|%s|%s' "$head_sha" "$pr_title" "$pr_body" | sha256sum | cut -c1-16)"
+        echo "fingerprint=${fingerprint}" >> "$GITHUB_OUTPUT"
 
         if [ "$ACTOR" = "$pr_author" ]; then
-          echo "authorized=true" >> "$GITHUB_OUTPUT"
+          authorized=true
+        else
+          role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
+          case "$role_name" in
+            admin|maintain|write|triage)
+              authorized=true
+              ;;
+            *)
+              echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
+              authorized=false
+              ;;
+          esac
+        fi
+
+        if [ "${authorized:-false}" = "false" ]; then
           exit 0
         fi
 
-        role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
-        case "$role_name" in
-          admin|maintain|write|triage)
-            echo "authorized=true" >> "$GITHUB_OUTPUT"
-            ;;
-          *)
-            echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
-            ;;
-        esac
+        # Check whether an up-to-date review already exists for the current PR
+        # content (same head SHA, title, and description). If so, skip the run to
+        # avoid wasteful duplicate reviews. The review comment embeds a fingerprint
+        # marker so this check can detect previously completed reviews.
+        comment_marker="<!-- aw-code-review-fingerprint: ${fingerprint} -->"
+        matching="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100&direction=desc" \
+          2>/dev/null | jq --arg marker "$comment_marker" '[.[] | select(.body | contains($marker))] | length' || echo 0)"
+        if [ "${matching:-0}" -gt "0" ]; then
+          echo "::notice::Skipping code-review: an up-to-date review already exists for the current PR state. Push a change to request a fresh review."
+          exit 0
+        fi
+
+        echo "authorized=true" >> "$GITHUB_OUTPUT"
 
   # ###############################################################
   # Override the COPILOT_GITHUB_TOKEN secret usage for the workflow
@@ -175,6 +213,7 @@ jobs:
   pre-activation:
     outputs:
       authorized: ${{ steps.authorize-invoker.outputs.authorized }}
+      fingerprint: ${{ steps.authorize-invoker.outputs.fingerprint }}
       copilot_pat_number: ${{ steps.select-copilot-pat.outputs.copilot_pat_number }}
 
 # Override the COPILOT_GITHUB_TOKEN expression used in the activation job
@@ -216,6 +255,14 @@ Follow the instructions in SKILL.md to perform a thorough code review of PR #${{
 **Important:** Before performing any analysis, check whether the PR has any actual code changes (lines added, removed, or modified). If the diff is empty (e.g., a merge commit with no effective changes), do **not** post a review comment. Simply stop without producing any output.
 
 When completed, post the review output as a regular comment on the PR using the `add-comment` safe output.
+
+**Important:** At the very end of the comment body, append the following HTML comment on its own line — exactly as shown — so that future invocations can detect that an up-to-date review already exists for this PR state:
+
+```
+<!-- aw-code-review-fingerprint: ${{ needs.pre_activation.outputs.fingerprint }} -->
+```
+
+Do not alter or reformat this marker.
 
 {{#if github.event.comment.id}}
 ## Step 3: Hide the slash_command Comment

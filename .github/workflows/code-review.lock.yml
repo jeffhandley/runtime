@@ -1,4 +1,4 @@
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"534c3c7034462289e9473488bf736e0eca12bc0012187431e0f41ceff4e6adb5","compiler_version":"v0.68.1","strict":true,"agent_id":"copilot","agent_model":"claude-opus-4.6"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"manually-updated-please-run-gh-aw-compile","compiler_version":"v0.68.1","strict":true,"agent_id":"copilot","agent_model":"claude-opus-4.6"}
 # gh-aw-manifest: {"version":1,"secrets":["COPILOT_GITHUB_TOKEN","COPILOT_PAT_0","COPILOT_PAT_1","COPILOT_PAT_2","COPILOT_PAT_3","COPILOT_PAT_4","COPILOT_PAT_5","COPILOT_PAT_6","COPILOT_PAT_7","COPILOT_PAT_8","COPILOT_PAT_9","GH_AW_GITHUB_MCP_SERVER_TOKEN","GH_AW_GITHUB_TOKEN","GITHUB_TOKEN"],"actions":[{"repo":"actions/checkout","sha":"de0fac2e4500dabe0009e67214ff5f5447ce83dd","version":"v6.0.2"},{"repo":"actions/download-artifact","sha":"3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c","version":"v8.0.1"},{"repo":"actions/github-script","sha":"3a2844b7e9c422d3c10d287c895573f7108da1b3","version":"v9"},{"repo":"actions/upload-artifact","sha":"bbbca2ddaa5d8feaa63e36b76fdaad77386f024f","version":"v7"},{"repo":"github/gh-aw-actions/setup","sha":"2fe53acc038ba01c3bbdc767d4b25df31ca5bdfc","version":"v0.68.1"}]}
 #    ___                   _   _      
 #   / _ \                 | | (_)     
@@ -130,13 +130,17 @@ concurrency:
   cancel-in-progress: true
   group: |-
     ${{
+      github.event_name == 'workflow_dispatch' &&
+      format('code-review-{0}', github.event.inputs.pr_number) ||
+      startsWith(github.event.comment.body, '/code-review') &&
       (
-        github.event_name == 'workflow_dispatch' ||
         github.actor == github.event.issue.user.login ||
         github.actor == github.event.pull_request.user.login
       ) &&
-      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number) ||
-      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number, github.actor)
+      format('code-review-{0}', github.event.pull_request.number || github.event.issue.number) ||
+      startsWith(github.event.comment.body, '/code-review') &&
+      format('code-review-{0}-{1}', github.event.pull_request.number || github.event.issue.number, github.actor) ||
+      format('code-review-run-{0}', github.run_id)
     }}
 
 run-name: "Code Review"
@@ -335,6 +339,7 @@ jobs:
           GH_AW_GITHUB_EVENT_COMMENT_ID: ${{ github.event.comment.id }}
           GH_AW_GITHUB_EVENT_INPUTS_PR_NUMBER: ${{ github.event.inputs.pr_number }}
           GH_AW_EXPR_2697560F: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+          GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT: ${{ needs.pre_activation.outputs.fingerprint }}
         with:
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
@@ -357,6 +362,7 @@ jobs:
           GH_AW_GITHUB_WORKSPACE: ${{ github.workspace }}
           GH_AW_IS_PR_COMMENT: ${{ github.event.issue.pull_request && 'true' || '' }}
           GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: ${{ needs.pre_activation.outputs.activated }}
+          GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT: ${{ needs.pre_activation.outputs.fingerprint }}
           GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_MATCHED_COMMAND: ${{ needs.pre_activation.outputs.matched_command }}
         with:
           script: |
@@ -381,6 +387,7 @@ jobs:
                 GH_AW_GITHUB_WORKSPACE: process.env.GH_AW_GITHUB_WORKSPACE,
                 GH_AW_IS_PR_COMMENT: process.env.GH_AW_IS_PR_COMMENT,
                 GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_ACTIVATED,
+                GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_FINGERPRINT,
                 GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_MATCHED_COMMAND: process.env.GH_AW_NEEDS_PRE_ACTIVATION_OUTPUTS_MATCHED_COMMAND
               }
             });
@@ -1237,6 +1244,7 @@ jobs:
       authorize-invoker_result: ${{ steps.authorize-invoker.outcome }}
       authorized: ${{ steps.authorize-invoker.outputs.authorized }}
       copilot_pat_number: ${{ steps.select-copilot-pat.outputs.copilot_pat_number }}
+      fingerprint: ${{ steps.authorize-invoker.outputs.fingerprint }}
       matched_command: ${{ steps.check_command_position.outputs.matched_command }}
       select-copilot-pat_result: ${{ steps.select-copilot-pat.outcome }}
       setup-trace-id: ${{ steps.setup.outputs.trace-id }}
@@ -1287,34 +1295,59 @@ jobs:
           set -euo pipefail
 
           echo "authorized=false" >> "$GITHUB_OUTPUT"
+          echo "fingerprint=" >> "$GITHUB_OUTPUT"
 
           if [ -z "${PR_NUMBER:-}" ]; then
             echo "::notice::Skipping code-review: unable to determine the target pull request."
             exit 0
           fi
 
-          pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '[.state, .user.login] | @tsv' 2>/dev/null || true)"
+          pr_info="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
+            --jq '[.state, .user.login, .head.sha, .title, (.body // "")] | @tsv' 2>/dev/null || true)"
           if [ -z "$pr_info" ]; then
             echo "::notice::Skipping code-review: unable to load pull request #${PR_NUMBER}."
             exit 0
           fi
 
-          IFS=$'\t' read -r pr_state pr_author <<< "$pr_info"
+          IFS=$'\t' read -r pr_state pr_author head_sha pr_title pr_body <<< "$pr_info"
+
+          # Compute a fingerprint of the current PR content (code ref + title + description).
+          # This is used to skip re-runs when nothing has changed since the last review.
+          fingerprint="$(printf '%s|%s|%s' "$head_sha" "$pr_title" "$pr_body" | sha256sum | cut -c1-16)"
+          echo "fingerprint=${fingerprint}" >> "$GITHUB_OUTPUT"
 
           if [ "$ACTOR" = "$pr_author" ]; then
-            echo "authorized=true" >> "$GITHUB_OUTPUT"
+            authorized=true
+          else
+            role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
+            case "$role_name" in
+              admin|maintain|write|triage)
+                authorized=true
+                ;;
+              *)
+                echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
+                authorized=false
+                ;;
+            esac
+          fi
+
+          if [ "${authorized:-false}" = "false" ]; then
             exit 0
           fi
 
-          role_name="$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${ACTOR}/permission" --jq .role_name 2>/dev/null || true)"
-          case "$role_name" in
-            admin|maintain|write|triage)
-              echo "authorized=true" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "::notice::Skipping code-review: only the PR author or users with triage or higher permission may invoke this workflow."
-              ;;
-          esac
+          # Check whether an up-to-date review already exists for the current PR
+          # content (same head SHA, title, and description). If so, skip the run to
+          # avoid wasteful duplicate reviews. The review comment embeds a fingerprint
+          # marker so this check can detect previously completed reviews.
+          comment_marker="<!-- aw-code-review-fingerprint: ${fingerprint} -->"
+          matching="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100&direction=desc" \
+            2>/dev/null | jq --arg marker "$comment_marker" '[.[] | select(.body | contains($marker))] | length' || echo 0)"
+          if [ "${matching:-0}" -gt "0" ]; then
+            echo "::notice::Skipping code-review: an up-to-date review already exists for the current PR state. Push a change to request a fresh review."
+            exit 0
+          fi
+
+          echo "authorized=true" >> "$GITHUB_OUTPUT"
         env:
           ACTOR: ${{ github.actor }}
           GH_TOKEN: ${{ github.token }}
