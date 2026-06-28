@@ -14,7 +14,7 @@ on:
   roles: [admin, maintainer, write]
   permissions: {}
 
-if: ${{ !github.event.repository.fork }}
+if: ${{ (!github.event.repository.fork) }}
 
 # ###############################################################
 # Select a PAT from the pool and override COPILOT_GITHUB_TOKEN.
@@ -32,7 +32,7 @@ environment: copilot-pat-pool
 
 engine:
   id: copilot
-  model: claude-opus-4.6
+  model: claude-opus-4.8
   env:
     COPILOT_GITHUB_TOKEN: |
       ${{ case(

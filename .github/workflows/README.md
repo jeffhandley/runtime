@@ -12,7 +12,7 @@ Most workflows are intended to run only in the `dotnet/runtime` repository and n
 jobs:
   job-1:
     # Do not run this job in forks
-    if: ${{ !github.event.repository.fork }}
+    if: ${{ (!github.event.repository.fork) }}
 
   job-2:
     # Do not run this job in forks outside the dotnet org

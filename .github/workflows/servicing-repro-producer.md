@@ -21,7 +21,7 @@ on:
         default: false
   permissions: {}
 
-if: ${{ github.event.repository.fork != true }}
+if: ${{ (!github.event.repository.fork) }}
 
 permissions:
   contents: read
