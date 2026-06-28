@@ -160,6 +160,10 @@ Determine the target `MAJOR.MINOR` from the PR's base branch (`release/MAJOR.MIN
 
 ## Finish
 
-Write a `GITHUB_STEP_SUMMARY` summarizing each PR handled (repro form, reproduced yes/no). **If this
-run posts no comments** (nothing qualified, all ruled out, or none reproduced), you MUST call `noop`
-with a one-line summary. All repro work happens under the per-PR `$WORKDIR`.
+Provide a clear final summary of each PR handled (repro form, reproduced yes/no) -- gh-aw surfaces
+your final report as the run summary. Also write it to `$GITHUB_STEP_SUMMARY` **best-effort**: the
+agentic sandbox often makes that file unwritable, which is expected -- when it is, just rely on the
+final report and the `step-summary.md` you included in each PR's artifact, and do **not** report it as
+a missing tool. **If this run posts no comments** (nothing qualified, all ruled out, or none
+reproduced), you MUST call `noop` with a one-line summary. All repro work happens under the per-PR
+`$WORKDIR`.

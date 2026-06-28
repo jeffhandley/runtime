@@ -173,6 +173,9 @@ commit** SHA) via the GitHub API, then:
 
 ## Finish
 
-Write a `GITHUB_STEP_SUMMARY` summarizing each PR handled (repro source, expected, actual-before,
-actual-after, verdict). **If this run posts no comments**, you MUST call `noop` with a one-line
-summary. All work happens under the per-PR `$WORKDIR`.
+Provide a clear final summary of each PR handled (repro source, expected, actual-before, actual-after,
+verdict) -- gh-aw surfaces your final report as the run summary. Also write it to
+`$GITHUB_STEP_SUMMARY` **best-effort**: the agentic sandbox often makes that file unwritable, which is
+expected -- when it is, rely on the final report and the `step-summary.md` included in the artifact,
+and do **not** report it as a missing tool. **If this run posts no comments**, you MUST call `noop`
+with a one-line summary. All work happens under the per-PR `$WORKDIR`.
