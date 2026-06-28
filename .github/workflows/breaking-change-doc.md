@@ -33,7 +33,7 @@ if: |
 post-steps:
   - name: Upload breaking change drafts
     if: always()
-    uses: actions/upload-artifact@v4
+    uses: actions/upload-artifact@v7.0.1
     with:
       name: breaking-change-docs
       path: artifacts/docs/breakingChanges/
@@ -62,6 +62,7 @@ on:
 # When org-level billing is available, this will be removed.
 # See `shared/pat_pool.README.md` for more information.
 # ###############################################################
+checkout: false
 imports:
   - uses: shared/pat_pool.md
     with:
