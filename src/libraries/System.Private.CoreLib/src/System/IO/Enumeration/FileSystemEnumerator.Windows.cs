@@ -161,6 +161,26 @@ namespace System.IO.Enumeration
                     ReturnSingleEntry: Interop.BOOLEAN.FALSE,
                     FileName: fileNamePtr,
                     RestartScan: Interop.BOOLEAN.FALSE);
+
+                // Some file system drivers don't handle the OS-level FileName filter the way NTFS does and report a
+                // zero-match first call as STATUS_OBJECT_NAME_NOT_FOUND (notably the Azure App Service run-from-package
+                // zip mount). Rather than special-casing each such status, fall back to the original behavior for this
+                // directory: re-run the query without the filter and let the managed matching (which always runs) filter.
+                if (fileNamePtr != null && (uint)status == Interop.StatusOptions.STATUS_OBJECT_NAME_NOT_FOUND)
+                {
+                    status = Interop.NtDll.NtQueryDirectoryFile(
+                        FileHandle: _directoryHandle,
+                        Event: IntPtr.Zero,
+                        ApcRoutine: IntPtr.Zero,
+                        ApcContext: IntPtr.Zero,
+                        IoStatusBlock: &statusBlock,
+                        FileInformation: _buffer,
+                        Length: (uint)_bufferLength,
+                        FileInformationClass: Interop.NtDll.FILE_INFORMATION_CLASS.FileFullDirectoryInformation,
+                        ReturnSingleEntry: Interop.BOOLEAN.FALSE,
+                        FileName: null,
+                        RestartScan: Interop.BOOLEAN.TRUE);
+                }
             }
 
             switch ((uint)status)
