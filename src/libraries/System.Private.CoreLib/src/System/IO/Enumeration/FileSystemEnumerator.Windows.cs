@@ -183,6 +183,16 @@ namespace System.IO.Enumeration
                 default:
                     int error = (int)Interop.NtDll.RtlNtStatusToDosError(status);
 
+                    // A filtered NtQueryDirectoryFile that matches nothing surfaces as different NTSTATUS values
+                    // depending on the file system driver (STATUS_NO_SUCH_FILE on NTFS, STATUS_OBJECT_NAME_NOT_FOUND
+                    // on the Azure App Service run-from-package zip mount, etc.), all of which translate to
+                    // ERROR_FILE_NOT_FOUND. The directory handle was already opened, so treat that as no matches.
+                    if (error == Interop.Errors.ERROR_FILE_NOT_FOUND)
+                    {
+                        DirectoryFinished();
+                        return false;
+                    }
+
                     // Note that there are many NT status codes that convert to ERROR_ACCESS_DENIED.
                     if ((error == Interop.Errors.ERROR_ACCESS_DENIED && _options.IgnoreInaccessible) || ContinueOnError(error))
                     {
