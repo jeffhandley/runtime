@@ -1,0 +1,139 @@
+name: Code Review Manager
+
+# Deterministic orchestrator for the agentic code-review-producer workflow.
+#
+# Pattern: OrchestratorOps (manager -> producer fan-out) + WorkQueueOps (durable
+# per-PR head-SHA queue) + DeterministicOps (pure bookkeeping, no LLM) + BatchOps
+# (throttle N dispatches per run).
+#
+# Every 10 minutes it POLLS open pull requests and compares each PR's current head
+# SHA to the last SHA we dispatched a review for (persisted in the Actions cache).
+# Any PR that is new -- or whose head changed by ANY means (push, force-push,
+# rebase, reopen, base merge that moves the head) -- is queued and a code-review-
+# producer run is dispatched for it. Because detection is poll + SHA-diff (not PR
+# events), no update path is missed. The queue is drained up to MAX_DISPATCH per
+# run, so a large initial backlog (all open PRs on first run) is processed
+# gradually instead of as one thundering herd.
+#
+# This workflow is intentionally NOT a gh-aw agentic workflow: its logic is
+# deterministic and needs no model, so it consumes no Copilot PAT-pool budget.
+
+on:
+  schedule:
+    # Every 10 minutes. GitHub Actions schedules run only on the default branch.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write        # required to dispatch code-review-producer via workflow_dispatch
+
+concurrency:
+  # Serialize manager runs; queue overlapping ticks rather than cancelling, so the
+  # per-PR state file is never written by two runs at once.
+  group: code-review-manager
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    # Repo convention: run on manual dispatch, or automatically only when NOT a fork.
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.repository.fork }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      # The producer is a gh-aw workflow; its compiled lock file is the dispatch target.
+      PRODUCER: code-review-producer.lock.yml
+      # Dispatch the producer on the same ref the manager runs on (default branch on
+      # schedule; the selected ref on manual dispatch / branch testing).
+      DISPATCH_REF: ${{ github.ref_name }}
+      MAX_DISPATCH: '20'
+
+    steps:
+      # Durable WorkQueueOps state: { "<pr_number>": "<last-dispatched head sha>" }.
+      # Rotating-key pattern -- restore the most recent state, save a new immutable
+      # entry keyed by run_id at the end.
+      - name: Restore reviewed-SHA state
+        uses: actions/cache/restore@v4
+        with:
+          path: .review-state
+          key: code-review-state-${{ github.run_id }}
+          restore-keys: |
+            code-review-state-
+
+      - name: Build queue and dispatch producers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .review-state
+          STATE_FILE=".review-state/reviewed-shas.json"
+          [ -f "$STATE_FILE" ] || echo '{}' > "$STATE_FILE"
+
+          # POLL: open, non-draft PRs with their current head SHA.
+          #
+          # SECURITY NOTE (fork PRs): dispatching the producer via workflow_dispatch runs
+          # it in BASE-REPO context on the default branch WITH secrets (the Copilot PAT
+          # pool), and the producer then checks out the PR's (possibly fork-owned) head to
+          # review it. This is broader than the old pull_request trigger, under which fork
+          # PRs ran without secrets. The producer is read-only, egress-firewalled to
+          # `defaults`, posts a single sanitized comment, and the PATs are
+          # Copilot-Requests-only -- so the exposure is bounded but non-zero. Fork PRs are
+          # included by default (goal: review EVERY PR). To auto-review only same-repo
+          # branches, add `and .isCrossRepository == false` to the select below.
+          gh pr list --repo "$REPO" --state open --limit 1000 \
+            --json number,headRefOid,isDraft,updatedAt,isCrossRepository \
+            --jq '[.[] | select(.isDraft == false)]' > open_prs.json
+          echo "Open non-draft PRs: $(jq 'length' open_prs.json) (forks included)"
+
+          # QUEUE: PRs whose current head SHA differs from the last-dispatched SHA
+          # (new PRs match because they have no recorded SHA). Oldest-updated first
+          # for fairness; throttle to MAX_DISPATCH per run.
+          STATE_JSON="$(cat "$STATE_FILE")"
+          jq -n \
+            --argjson prs "$(cat open_prs.json)" \
+            --argjson seen "$STATE_JSON" \
+            --argjson max "$MAX_DISPATCH" '
+              [ $prs[] | select( ($seen[(.number | tostring)] // "") != .headRefOid ) ]
+              | sort_by(.updatedAt)
+              | .[:$max]
+            ' > queue.json
+          echo "Queued for review this run: $(jq 'length' queue.json)"
+          jq -r '.[] | "  PR #\(.number) -> \(.headRefOid)"' queue.json || true
+
+          # PROCESS: dispatch one producer per queued PR; on successful DISPATCH record
+          # the head SHA so the PR is not re-dispatched until it changes again.
+          # NOTE (fire-and-forget): this records dispatch acceptance, not review
+          # completion. If a producer run later fails (agent error, timeout, cancelled),
+          # the SHA is still recorded and the PR is not retried until its head changes
+          # again. Transient producer failures are thus dropped -- acceptable for this
+          # polling model, where the next real push re-queues the PR.
+          failed=0
+          while read -r number sha; do
+            [ -z "$number" ] && continue
+            echo "Dispatching code-review-producer for PR #$number ($sha)"
+            if gh workflow run "$PRODUCER" --repo "$REPO" --ref "$DISPATCH_REF" -f pr_number="$number"; then
+              tmp="$(mktemp)"
+              jq --arg n "$number" --arg s "$sha" '.[$n] = $s' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+            else
+              echo "::error::Failed to dispatch code-review-producer for PR #$number"
+              failed=1
+            fi
+            sleep 5   # space out workflow_dispatch calls to stay gentle on the API
+          done < <(jq -r '.[] | "\(.number) \(.headRefOid)"' queue.json)
+
+          # Prune closed PRs from the state file so it does not grow without bound.
+          tmp="$(mktemp)"
+          jq --slurpfile prs open_prs.json '
+            ($prs[0] | map(.number | tostring)) as $open
+            | with_entries(select(.key | IN($open[])))
+          ' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+
+          exit $failed
+
+      - name: Save reviewed-SHA state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .review-state
+          key: code-review-state-${{ github.run_id }}
