@@ -1,5 +1,5 @@
 ---
-description: "Review a pull request's changes for correctness, performance, and consistency with project conventions. Dispatched per-PR by the code-review-manager workflow."
+description: "Review a pull request's changes for correctness, performance, and consistency with project conventions. Worker dispatched per-PR by the code-review-orchestrator workflow (OrchestratorOps)."
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
   # Fan-out safety: without a per-PR discriminator, the compiler-generated agent /
   # safe_outputs / conclusion job concurrency groups are static across all dispatched
-  # runs, so concurrently dispatched producers for different PRs would cancel each
+  # runs, so concurrently dispatched workers for different PRs would cancel each
   # other. The discriminator makes each PR's jobs a distinct concurrency slot, while
   # cancel-in-progress above still cancels a stale review when the SAME PR is pushed.
   job-discriminator: ${{ github.event.inputs.pr_number }}
@@ -49,7 +49,7 @@ on:
         description: 'Pull request number to review'
         required: true
         type: number
-  # The manager dispatches this producer with GITHUB_TOKEN, so the run's actor is
+  # The orchestrator dispatches this worker with GITHUB_TOKEN, so the run's actor is
   # github-actions[bot]. gh-aw's default membership gate (roles admin/maintainer/write)
   # denies bot actors, so we allowlist the github-actions bot. gh-aw's check_membership
   # authorizes an allowlisted bot when GitHub's collaborator-permission API returns any
@@ -71,16 +71,15 @@ imports:
 
 engine:
   id: copilot
-  model: claude-opus-4.6
   env:
     COPILOT_GITHUB_TOKEN: ${{ case(needs.pat_pool.outputs.pat_number == '0', secrets.COPILOT_PAT_0, needs.pat_pool.outputs.pat_number == '1', secrets.COPILOT_PAT_1, needs.pat_pool.outputs.pat_number == '2', secrets.COPILOT_PAT_2, needs.pat_pool.outputs.pat_number == '3', secrets.COPILOT_PAT_3, needs.pat_pool.outputs.pat_number == '4', secrets.COPILOT_PAT_4, needs.pat_pool.outputs.pat_number == '5', secrets.COPILOT_PAT_5, needs.pat_pool.outputs.pat_number == '6', secrets.COPILOT_PAT_6, needs.pat_pool.outputs.pat_number == '7', secrets.COPILOT_PAT_7, needs.pat_pool.outputs.pat_number == '8', secrets.COPILOT_PAT_8, needs.pat_pool.outputs.pat_number == '9', secrets.COPILOT_PAT_9, secrets.COPILOT_GITHUB_TOKEN) }}
 ---
 
-# Code Review Producer
+# Code Review Worker
 
 You are an expert code reviewer for the dotnet/runtime repository. Your job is to review pull request #${{ github.event.inputs.pr_number }} and post a thorough analysis as a comment.
 
-This workflow is dispatched per-PR by the `code-review-manager` workflow (or manually via `workflow_dispatch`) whenever a pull request is new or has had commits pushed.
+This workflow is dispatched per-PR by the `code-review-orchestrator` workflow (or manually via `workflow_dispatch`) whenever a pull request is new or has had commits pushed.
 
 ## Step 0: Prepare Workspace
 
