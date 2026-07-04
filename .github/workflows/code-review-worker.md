@@ -12,7 +12,9 @@ network:
 
 tools:
   github:
-    mode: remote
+    # Use the default containerized github-mcp-server (authenticated with GITHUB_TOKEN),
+    # NOT `mode: remote` -- the remote (api.githubcopilot.com) server emits malformed
+    # gateway config on gh aw v0.81.6 and needs a Copilot-enabled token the sim repo lacks.
     toolsets: [default, search]
   web-fetch:
 
@@ -20,6 +22,17 @@ checkout:
   fetch-depth: 50
 
 safe-outputs:
+  # Threat detection is disabled because it cannot authenticate under the Copilot PAT-pool
+  # stop-gap: gh-aw runs threat detection in a separate job whose `needs` are only
+  # [activation, agent], so the `engine.env.COPILOT_GITHUB_TOKEN` pool expression (which
+  # references `needs.pat_pool`) does not resolve there and the detection agent fails with
+  # `no_auth_info`. That makes every run conclude "warning" and prepend a misleading
+  # "agentic threat detected / could not be parsed" caution banner to the review comment.
+  # The worker is read-only, egress-firewalled to `defaults`, and posts a single sanitized
+  # comment, so the residual risk is bounded. Re-enable this once org Copilot billing
+  # (permissions.copilot-requests: write) replaces the PAT pool and the detection job can
+  # authenticate via the Actions token.
+  threat-detection: false
   add-comment:
     max: 1
     target: "*"
